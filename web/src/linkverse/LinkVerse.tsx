@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useData } from "./useData";
 import Scope, { isPriority } from "./Scope";
 import Kit from "./Kit";
+import Onboarding from "./Onboarding";
 
 const fmtSubs = (n: number) =>
   n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`;
@@ -76,8 +77,10 @@ export default function LinkVerse() {
         </div>
       </header>
 
+      <Onboarding />
+
       {/* 1 · FINDING */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 pb-14 animate-rise">
+      <section id="hero" className="max-w-6xl mx-auto px-6 pt-16 pb-14 animate-rise">
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-5">
           Your product in. The right creators out.
         </div>
