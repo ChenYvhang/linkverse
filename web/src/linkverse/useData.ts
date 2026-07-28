@@ -1,0 +1,85 @@
+import { useEffect, useState } from "react";
+
+export type Script = {
+  platform: string;
+  hook: string;
+  beats: string[];
+  voiceover: string[];
+  caption: string;
+  cta: string;
+};
+
+export type RiskReview = {
+  flagged: boolean;
+  keywords: string[];
+  conclusion: string;
+};
+
+export type Contribution = { dim: string; value: number };
+
+export type Vision = {
+  sportTypes: string[];
+  perspective: string;
+  pace: string;
+  stabilization: number; // 0-1
+  extremity: number; // 0-1
+  gear: number; // 0-1
+  evidence: string;
+};
+
+export type VelocityPoint = {
+  date: string;
+  relative: number | null;
+  seasonAdjusted: number | null;
+};
+
+export type Creator = {
+  id: string;
+  title: string;
+  url: string;
+  subs: number;
+  market: string;
+  sport: string;
+  thumb: string | null;
+  P: number; // Potential — about to break out?
+  R: number; // Resonance — fits the product?
+  C: number; // Combined
+  product: string;
+  reason: string;
+  price: { min: number | null; max: number | null; basis: string };
+  hasScript: boolean;
+  scripts: Script[];
+  risk: RiskReview;
+  contributions: Contribution[];
+  vision: Vision | null;
+  velocity: VelocityPoint[];
+  thumbnails: string[];
+};
+
+export type Dataset = {
+  meta: {
+    name: string;
+    channel_count: number;
+    analyzed_count: number;
+    finding: { k: number; model_pct: number; baseline_pct: number; lift: number };
+    products: Record<string, string>;
+  };
+  creators: Creator[];
+};
+
+export function useData() {
+  const [data, setData] = useState<Dataset | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.BASE_URL}linkverse.json`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then(setData)
+      .catch((e) => setError(String(e)));
+  }, []);
+
+  return { data, error };
+}

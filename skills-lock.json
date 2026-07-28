@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "css-animation-creator": {
+      "source": "onewave-ai/claude-skills",
+      "sourceType": "github",
+      "skillPath": "css-animation-creator/SKILL.md",
+      "computedHash": "733e7c6cd6d70106541651b09c826b0b7766894118f96ce6bb476403231197c3"
+    }
+  }
+}

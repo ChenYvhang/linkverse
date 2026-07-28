@@ -1,0 +1,97 @@
+# 单品卖点向量 —— 与 config/dimensions.yaml 定义的八维语义空间严格同序：
+# [0]perspective_ratio [1]stabilization_demand [2]motion_complexity
+# [3]scene_extremity [4]gear_visibility [5]narrative_pace
+# [6]scene_diversity [7]slow_motion_demand
+#
+# 向量为手工定义（基于公开产品定位与卖点特性），不是测量值。用于与
+# vision.py 输出的 content_vector 做 cosine similarity 计算共振分 R。
+# feature_weights: 功能级卖点对应的维度子集及权重，用于前端"共振分维度贡献"横条图。
+
+products:
+  - id: x5
+    name: "Insta360 X5"
+    description: "双镜头360°全景运动相机，主打第一人称沉浸视角、隐形自拍杆与高强度防抖，适配高风险极限场景"
+    vector: [0.9, 0.95, 0.7, 0.85, 0.3, 0.5, 0.5, 0.6]
+    feature_weights:
+      隐形自拍杆:
+        dims: [perspective_ratio, gear_visibility]
+        weight: 0.35
+        note: "第一人称视角占比高、装备可见度低 → 自拍杆'隐形'卖点越有共鸣"
+      子弹时间:
+        dims: [slow_motion_demand, motion_complexity]
+        weight: 0.2
+        note: "360°素材便于后期做环绕定格/子弹时间效果"
+      防抖:
+        dims: [stabilization_demand, scene_extremity]
+        weight: 0.3
+        note: "场景越极限、防抖需求越高，越能体现FlowState防抖优势"
+      超广角:
+        dims: [scene_diversity]
+        weight: 0.15
+        note: "360°素材天然覆盖更广场景，多场景切换内容更契合"
+
+  - id: go3s
+    name: "Insta360 GO 3S"
+    description: "拇指大小的可穿戴微型相机，主打极致第一人称视角与轻量随身拍摄，弱化装备存在感"
+    vector: [0.95, 0.8, 0.4, 0.5, 0.1, 0.4, 0.4, 0.3]
+    feature_weights:
+      隐形自拍杆:
+        dims: [perspective_ratio, gear_visibility]
+        weight: 0.4
+        note: "可穿戴设计天然贴近'装备隐形、纯第一人称'的定位"
+      子弹时间:
+        dims: [slow_motion_demand, motion_complexity]
+        weight: 0.1
+        note: "机身小巧，慢动作/子弹时间不是核心卖点"
+      防抖:
+        dims: [stabilization_demand, scene_extremity]
+        weight: 0.3
+        note: "日常轻量运动场景的防抖需求，弱于高强度极限运动"
+      超广角:
+        dims: [scene_diversity]
+        weight: 0.2
+        note: "适合日常多场景切换的vlog式内容"
+
+  - id: ace_pro2
+    name: "Insta360 Ace Pro 2"
+    description: "传统机身式运动相机，主打高强度防抖、低光表现与极限场景耐用性，装备本身常在画面中可见（头盔/支架安装）"
+    vector: [0.6, 0.9, 0.55, 0.9, 0.7, 0.5, 0.45, 0.35]
+    feature_weights:
+      隐形自拍杆:
+        dims: [perspective_ratio, gear_visibility]
+        weight: 0.15
+        note: "传统机身安装方式，装备可见度本身较高，非隐形自拍杆核心场景"
+      子弹时间:
+        dims: [slow_motion_demand, motion_complexity]
+        weight: 0.15
+        note: "支持高帧率慢动作，但非首要卖点"
+      防抖:
+        dims: [stabilization_demand, scene_extremity]
+        weight: 0.5
+        note: "高强度防抖与极限场景耐用性是该机型的核心卖点"
+      超广角:
+        dims: [scene_diversity]
+        weight: 0.2
+        note: "广角适配多变户外场景"
+
+  - id: flow2pro
+    name: "Insta360 Flow 2 Pro"
+    description: "手机云台稳定器，主打平滑运镜与叙事型内容，非第一人称场景，适合中等强度运动与日常vlog"
+    vector: [0.15, 0.85, 0.8, 0.3, 0.8, 0.6, 0.55, 0.2]
+    feature_weights:
+      隐形自拍杆:
+        dims: [perspective_ratio, gear_visibility]
+        weight: 0.05
+        note: "云台手持使用，装备高度可见，与'隐形'定位关联极弱"
+      子弹时间:
+        dims: [slow_motion_demand, motion_complexity]
+        weight: 0.15
+        note: "复合运镜能力强，但慢动作/子弹时间非核心场景"
+      防抖:
+        dims: [stabilization_demand, scene_extremity]
+        weight: 0.45
+        note: "云台机械增稳是核心卖点，但极限场景耐用性不是重点"
+      超广角:
+        dims: [scene_diversity]
+        weight: 0.35
+        note: "叙事型内容常见多场景切换（vlog/采访/旅拍）"

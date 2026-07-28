@@ -1,0 +1,46 @@
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap");
+@import "tailwindcss";
+
+/* LinkVerse — a scouting instrument for spotting breakout action-sports
+   creators before they blow up. Light "viewfinder" aesthetic (reads well on a
+   classroom projector), one ultramarine signal hue, mono for every measured
+   number. */
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink: #16181d;
+  --color-paper: #eceef1;
+  --color-surface: #ffffff;
+  --color-line: #d8dce2;
+  --color-muted: #737a85;
+  --color-accent: #1f35e0;
+
+  --animate-rise: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide: slide 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* numeric readouts */
+.num { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

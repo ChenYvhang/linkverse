@@ -1,0 +1,27 @@
+{
+  "threshold_used": 1.3,
+  "threshold_resolution": {
+    "threshold_used": 1.3,
+    "positive_rate": 0.07207547169811321,
+    "relaxed": true,
+    "positive_rate_at_default_threshold": 0.04641509433962264
+  },
+  "old_loose": {
+    "positive_rate_train": 0.09509433962264151,
+    "positive_rate_eval": 0.13333333333333333,
+    "n_training_rows": 2650,
+    "n_eval_rows": 525,
+    "baseline_hit_rate": 0.1,
+    "model_hit_rate": 0.5,
+    "lift": 5.0
+  },
+  "new_tightened": {
+    "positive_rate_train": 0.07207547169811321,
+    "positive_rate_eval": 0.09904761904761905,
+    "n_training_rows": 2650,
+    "n_eval_rows": 525,
+    "baseline_hit_rate": 0.1,
+    "model_hit_rate": 0.45,
+    "lift": 4.5
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "total_videos": 25088,
+  "null_velocity_count": 0,
+  "null_velocity_ratio": 0.0,
+  "bucket_stats": {
+    "0-7": {
+      "count": 2083,
+      "mean": 2.701312641733522,
+      "median": 0.990084210807276,
+      "std": 15.3883509501799
+    },
+    "7-30": {
+      "count": 3231,
+      "mean": 3.3825045487507013,
+      "median": 1.0,
+      "std": 46.019903728176125
+    },
+    "30-90": {
+      "count": 5197,
+      "mean": 3.439918754573657,
+      "median": 1.0,
+      "std": 27.32222171257026
+    },
+    "90-365": {
+      "count": 8451,
+      "mean": 5.467398458666981,
+      "median": 1.0,
+      "std": 184.95669929771387
+    },
+    "365+": {
+      "count": 6126,
+      "mean": 9.134903238234761,
+      "median": 1.0,
+      "std": 88.51629852241848
+    }
+  },
+  "drift_check": {
+    "slope": 0.001983157838544791,
+    "spread_for_reference": 0.004434475737097706,
+    "threshold": 0.05,
+    "pass": true
+  },
+  "season_coef_summary": {
+    "滑雪": {
+      "min_coef": 0.7340770910808099,
+      "max_coef": 1.1047086792442462,
+      "insufficient_sample": false,
+      "sample_size": 4320
+    },
+    "骑行": {
+      "min_coef": 0.9229084537888743,
+      "max_coef": 1.1885019347705914,
+      "insufficient_sample": false,
+      "sample_size": 2633
+    },
+    "冲浪": {
+      "min_coef": 0.902846625358178,
+      "max_coef": 1.176510705153379,
+      "insufficient_sample": false,
+      "sample_size": 1295
+    },
+    "潜水": {
+      "min_coef": 0.9718969555035128,
+      "max_coef": 1.0998288931685085,
+      "insufficient_sample": false,
+      "sample_size": 4424
+    },
+    "摩托": {
+      "min_coef": 0.8500936054390463,
+      "max_coef": 1.1140761221458282,
+      "insufficient_sample": false,
+      "sample_size": 3332
+    },
+    "越野跑": {
+      "min_coef": 0.8923771637458338,
+      "max_coef": 1.0893063703011248,
+      "insufficient_sample": false,
+      "sample_size": 3160
+    },
+    "攀岩": {
+      "min_coef": 0.9097660246561403,
+      "max_coef": 1.0903420248937423,
+      "insufficient_sample": false,
+      "sample_size": 3324
+    },
+    "极限运动综合": {
+      "min_coef": 0.8241609787099188,
+      "max_coef": 1.0731395679809919,
+      "insufficient_sample": false,
+      "sample_size": 2600
+    }
+  }
+}

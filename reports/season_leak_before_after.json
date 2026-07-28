@@ -1,0 +1,21 @@
+{
+  "leaky": {
+    "eval_rows": 525,
+    "scored_rows": 525,
+    "baseline_hit_rate": 0.1,
+    "model_hit_rate": 0.5,
+    "lift": 5.0,
+    "average_precision": 0.2828119922173018
+  },
+  "fixed": {
+    "eval_rows": 525,
+    "scored_rows": 525,
+    "baseline_hit_rate": 0.1,
+    "model_hit_rate": 0.5,
+    "lift": 5.0,
+    "average_precision": 0.2680682351015251
+  },
+  "gate_pass": true,
+  "lift_tied": true,
+  "verdict": "Top-20 命中率打平（两版都是lift=5.0，粒度不够分辨），改用全量AP判断：fixed AP=0.2681 vs leaky AP=0.2828 → PASS（AP下降，泄漏确认修复）"
+}

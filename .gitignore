@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+pipeline/raw/
+pipeline/cache/
+pipeline/artifacts/
+web/node_modules/
+web/dist/
+web/public/dataset.json
+.claude/
+screenshots/

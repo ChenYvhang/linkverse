@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans SC", system-ui, sans-serif;
+
+  /* Single accent — real Insta360 brand color, scraped from insta360.com
+     2026-07-18 (see PLAN.md §8.1.5), replacing the three invented
+     glimmer-300/400/500 shades. Only used for the 引爆候选 highlight and key
+     numbers (PLAN.md §3.3); everywhere else stays grayscale. Depth when
+     needed comes from opacity (accent/10, accent/25, ...), not new hexes. */
+  --color-accent: #ff8b26;
+
+  --color-ink-100: #e8e8e8;
+  --color-ink-400: #999999;
+  --color-ink-600: #666666;
+
+  --animate-fade-in-up: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-twinkle: twinkle 3.2s ease-in-out infinite;
+  --animate-drift: drift 18s ease-in-out infinite;
+  --animate-rise: rise 7s ease-in infinite;
+  --animate-shimmer-text: shimmer-text 6s linear infinite;
+  --animate-slide-in-right: slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 0.35s ease both;
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes twinkle {
+    0%, 100% {
+      opacity: 0.85;
+      transform: scale(1) rotate(0deg);
+      filter: drop-shadow(0 0 2px rgba(255, 139, 38, 0.5));
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.12) rotate(8deg);
+      filter: drop-shadow(0 0 8px rgba(255, 139, 38, 0.85));
+    }
+  }
+  @keyframes drift {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(-2%, 2%) scale(1.06);
+    }
+  }
+  @keyframes rise {
+    0% {
+      opacity: 0;
+      transform: translateY(0) translateX(0);
+    }
+    12% {
+      opacity: 1;
+    }
+    85% {
+      opacity: 0.15;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-140px) translateX(var(--rise-drift, 8px));
+    }
+  }
+  @keyframes shimmer-text {
+    to {
+      background-position: 200% center;
+    }
+  }
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(900px 480px at 15% -10%, rgba(255, 139, 38, 0.09), transparent 60%),
+    radial-gradient(900px 600px at 100% 0%, rgba(40, 100, 220, 0.2), transparent 60%),
+    #02042c;
+  background-attachment: fixed;
+  color: var(--color-ink-100);
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #333844;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 微光寻者 brand atmosphere: a slow aurora wash behind the header and
+   a handful of embers drifting upward, evoking "catch the glimmer before dawn". */
+.glimmer-aura {
+  position: absolute;
+  inset: -40% -10% auto -10%;
+  height: 220%;
+  pointer-events: none;
+  background:
+    radial-gradient(480px 200px at 20% 0%, rgba(255, 139, 38, 0.15), transparent 70%),
+    radial-gradient(360px 180px at 85% 20%, rgba(40, 100, 220, 0.24), transparent 70%);
+  animation: var(--animate-drift);
+  will-change: transform;
+}
+
+.glimmer-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.glimmer-particles span {
+  position: absolute;
+  bottom: -6px;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: #ff8b26;
+  box-shadow: 0 0 6px 1px rgba(255, 139, 38, 0.8);
+  animation: var(--animate-rise);
+  will-change: transform, opacity;
+}
+.glimmer-particles span:nth-child(1) { left: 6%;  --rise-drift: 10px; animation-delay: 0s;   animation-duration: 6.5s; }
+.glimmer-particles span:nth-child(2) { left: 18%; --rise-drift: -8px; animation-delay: 1.4s; animation-duration: 8s; }
+.glimmer-particles span:nth-child(3) { left: 34%; --rise-drift: 6px;  animation-delay: 2.6s; animation-duration: 7.2s; }
+.glimmer-particles span:nth-child(4) { left: 55%; --rise-drift: -10px; animation-delay: 0.6s; animation-duration: 6.8s; }
+.glimmer-particles span:nth-child(5) { left: 72%; --rise-drift: 8px;  animation-delay: 3.4s; animation-duration: 7.6s; }
+.glimmer-particles span:nth-child(6) { left: 88%; --rise-drift: -6px; animation-delay: 2s;   animation-duration: 8.4s; }
+
+.glimmer-text {
+  background: linear-gradient(90deg, #ff8b26, #ffd9a8, #ff8b26, #cc6f1a, #ff8b26);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-shimmer-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
