@@ -79,19 +79,24 @@ export default function LinkVerse() {
       {/* 1 · FINDING */}
       <section className="max-w-6xl mx-auto px-6 pt-16 pb-14 animate-rise">
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-5">
-          Measured on held-out data · Top {f.k}
+          Your product in. The right creators out.
         </div>
         <h1 className="font-display font-extrabold text-ink leading-[1.05] text-[clamp(2rem,5vw,3.4rem)] max-w-3xl">
-          We catch{" "}
-          <span className="num text-accent">{f.model_pct}%</span> of tomorrow's breakout creators.
+          The fastest way to find creators who fit your brand.
         </h1>
+        <p className="mt-2 text-xs text-muted">
+          Demo tuned for Insta360 — full product-input matching coming next.
+        </p>
         <p className="mt-4 text-lg text-ink/70 max-w-2xl">
-          Ranking by follower count catches just{" "}
-          <span className="num font-semibold text-ink">{f.baseline_pct}%</span>. Our potential score is{" "}
-          <span className="num font-semibold text-accent">{f.lift}× better</span> at spotting who breaks out next.
+          Paste your company and product. LinkVerse matches it against thousands of creators — for audience fit,
+          local reach, and breakout potential — so you reach out to the right ten, not the loudest thousand.
         </p>
 
-        <div className="mt-8 flex flex-wrap items-end gap-x-10 gap-y-4">
+        <div className="mt-8 text-[11px] uppercase tracking-wider text-muted font-semibold">
+          Measured on held-out data — {f.lift}× better than follower-count ranking ({f.model_pct}% vs{" "}
+          {f.baseline_pct}%).
+        </div>
+        <div className="mt-3 flex flex-wrap items-end gap-x-10 gap-y-4">
           <Stat big value={`${f.model_pct}%`} label="LinkVerse hit rate" accent />
           <Stat big value={`${f.baseline_pct}%`} label="Follower-count baseline" />
           <Stat big value={`${f.lift}×`} label="Improvement" accent />
@@ -107,7 +112,7 @@ export default function LinkVerse() {
         </div>
 
         <p className="mt-8 text-sm text-muted max-w-2xl leading-relaxed">
-          LinkVerse scores {data.meta.channel_count.toLocaleString()} action-sports creators on two axes —{" "}
+          LinkVerse scores {data.meta.channel_count.toLocaleString()} creators on two axes —{" "}
           <span className="text-ink font-medium">Potential</span> (are they about to break out?) and{" "}
           <span className="text-ink font-medium">Resonance</span> (do they fit your product?) — then hands you a
           ready outreach kit for each one.
