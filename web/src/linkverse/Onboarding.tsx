@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Question = { id: string; prompt: string; placeholder: string };
 
@@ -45,8 +45,13 @@ export default function Onboarding() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
   const [nudgedStep, setNudgedStep] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const done = step >= QUESTIONS.length;
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,54 +89,66 @@ export default function Onboarding() {
     setInput("");
   }
 
-  function scrollToHero() {
-    document.getElementById("hero")?.scrollIntoView({ behavior: "smooth" });
+  function scrollToEvidence() {
+    document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth" });
   }
 
   return (
-    <section className="border-b border-line bg-paper/60">
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-2">
+    <section className="border-y border-line bg-gradient-to-b from-paper to-surface">
+      <div className="max-w-3xl mx-auto px-6 py-14">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-2 text-center">
           Tell us about your product
         </div>
-        <h2 className="font-display font-bold text-ink text-xl mb-4">
+        <h2 className="font-display font-bold text-ink text-2xl mb-6 text-center">
           Describe your company and product — LinkVerse will ask a few quick questions.
         </h2>
 
-        <div className="rounded-xl border border-line bg-surface p-4">
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1 mb-4">
-            {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed ${
-                    m.role === "user" ? "bg-accent text-white" : "bg-paper border border-line text-ink"
-                  }`}
-                >
-                  {m.text}
+        <div className="rounded-2xl border border-line bg-surface shadow-sm p-5">
+          {messages.length > 1 && (
+            <div ref={scrollRef} className="space-y-2 max-h-72 overflow-y-auto pr-1 mb-4 scroll-smooth">
+              {messages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed ${
+                      m.role === "user" ? "bg-accent text-white" : "bg-paper border border-line text-ink"
+                    }`}
+                  >
+                    {m.text}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {!done ? (
-            <form onSubmit={handleSubmit} className="flex gap-2">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={QUESTIONS[step].placeholder}
-                aria-label="Your answer"
-                autoFocus
-                className="flex-1 bg-surface border border-line rounded-lg px-3.5 py-2.5 text-sm text-ink
-                  placeholder:text-muted focus:outline-none focus:border-accent/60"
-              />
-              <button
-                type="submit"
-                className="px-4 py-2.5 rounded-lg bg-accent text-white text-sm font-medium
-                  hover:bg-accent/90 transition-colors shrink-0"
-              >
-                Send
-              </button>
-            </form>
+            <>
+              {messages.length === 1 && (
+                <p className="text-ink font-medium mb-3">{messages[0].text}</p>
+              )}
+              <form onSubmit={handleSubmit} className="flex gap-3">
+                <div
+                  className="flex-1 rounded-2xl p-[1.5px] bg-gradient-to-r from-accent via-[#5b6bf0] to-accent/40
+                    focus-within:shadow-[0_0_0_4px_rgba(31,53,224,0.15)] transition-shadow"
+                >
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder={QUESTIONS[step].placeholder}
+                    aria-label="Your answer"
+                    autoFocus
+                    className="w-full bg-surface rounded-2xl px-5 py-4 text-base text-ink
+                      placeholder:text-muted focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-6 py-4 rounded-2xl bg-gradient-to-r from-accent to-[#5b6bf0] text-white
+                    text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
+                >
+                  Send
+                </button>
+              </form>
+            </>
           ) : (
             <div className="rounded-lg border border-accent/25 bg-accent/[0.04] px-4 py-3.5">
               <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-2">
@@ -150,7 +167,7 @@ export default function Onboarding() {
                 tuned for Insta360 — explore the Insta360 results below.
               </p>
               <button
-                onClick={scrollToHero}
+                onClick={scrollToEvidence}
                 className="text-sm font-medium text-accent border border-accent/30 rounded-lg px-4 py-2
                   hover:bg-accent hover:text-white transition-colors"
               >

@@ -77,10 +77,8 @@ export default function LinkVerse() {
         </div>
       </header>
 
-      <Onboarding />
-
       {/* 1 · FINDING */}
-      <section id="hero" className="max-w-6xl mx-auto px-6 pt-16 pb-14 animate-rise">
+      <section className="max-w-6xl mx-auto px-6 pt-16 pb-14 animate-rise">
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-5">
           Your product in. The right creators out.
         </div>
@@ -122,8 +120,10 @@ export default function LinkVerse() {
         </p>
       </section>
 
+      <Onboarding />
+
       {/* 2 · EVIDENCE (scope + top picks) */}
-      <section className="border-t border-line bg-surface">
+      <section id="evidence" className="border-t border-line bg-surface">
         <div className="max-w-6xl mx-auto px-6 py-12 grid lg:grid-cols-[1.15fr_1fr] gap-10 items-start">
           <div>
             <div className="flex items-center justify-between mb-3">
