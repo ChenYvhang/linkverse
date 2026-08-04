@@ -67,19 +67,21 @@ export type Dataset = {
   creators: Creator[];
 };
 
-export function useData() {
+export function useData(dataPath: string) {
   const [data, setData] = useState<Dataset | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}linkverse.json`)
+    setData(null);
+    setError(null);
+    fetch(`${import.meta.env.BASE_URL}${dataPath}`)
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
       .then(setData)
       .catch((e) => setError(String(e)));
-  }, []);
+  }, [dataPath]);
 
   return { data, error };
 }

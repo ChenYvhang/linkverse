@@ -1,17 +1,28 @@
-import { useMemo, useState } from "react";
-import { useData } from "./useData";
+import { useEffect, useMemo, useState } from "react";
+import { useData, type Creator, type Dataset } from "./useData";
 import Scope, { isPriority } from "./Scope";
 import Kit from "./Kit";
 import Onboarding from "./Onboarding";
+import CategoryTabs from "./CategoryTabs";
+import OnboardingStatus from "./OnboardingStatus";
+import { CATEGORIES, type CategoryId } from "./categories";
 
 const fmtSubs = (n: number) =>
   n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`;
 
 export default function LinkVerse() {
-  const { data, error } = useData();
+  const [categoryId, setCategoryId] = useState<CategoryId>(CATEGORIES[0].id);
+  const category = CATEGORIES.find((c) => c.id === categoryId) ?? CATEGORIES[0];
+  const { data, error } = useData(category.dataPath);
   const [selected, setSelected] = useState<string | null>(null);
   const [onlyPriority, setOnlyPriority] = useState(false);
   const [poolIds, setPoolIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setSelected(null);
+    setOnlyPriority(false);
+    setPoolIds(new Set());
+  }, [categoryId]);
 
   const selectedCreator = useMemo(
     () => data?.creators.find((c) => c.id === selected) ?? null,
@@ -49,19 +60,6 @@ export default function LinkVerse() {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [poolCreators]);
 
-  if (error)
-    return (
-      <div className="min-h-screen grid place-items-center px-6 text-center">
-        <p className="text-muted">
-          Couldn't load the dataset ({error}). Run <code className="num">npm run build</code> so{" "}
-          <code className="num">linkverse.json</code> is served from <code className="num">public/</code>.
-        </p>
-      </div>
-    );
-  if (!data) return <div className="min-h-screen grid place-items-center text-muted">Loading…</div>;
-
-  const f = data.meta.finding;
-
   return (
     <div className="min-h-screen">
       {/* top bar */}
@@ -71,12 +69,80 @@ export default function LinkVerse() {
           <span className="hidden sm:inline text-xs text-muted border-l border-line pl-4">
             Find breakout creators before they blow up
           </span>
-          <span className="num ml-auto text-xs text-muted">
-            {data.meta.analyzed_count} analyzed · {data.meta.channel_count.toLocaleString()} tracked
-          </span>
+          {data && (
+            <span className="num ml-auto text-xs text-muted">
+              {data.meta.analyzed_count} analyzed · {data.meta.channel_count.toLocaleString()} tracked
+            </span>
+          )}
         </div>
+        <CategoryTabs categories={CATEGORIES} selected={categoryId} onSelect={setCategoryId} />
       </header>
 
+      {category.status === "onboarding" ? (
+        <OnboardingStatus category={category} sampleData={data} error={error} />
+      ) : error ? (
+        <div className="min-h-screen grid place-items-center px-6 text-center">
+          <p className="text-muted">
+            Couldn't load the dataset ({error}). Run <code className="num">npm run build</code> so{" "}
+            <code className="num">linkverse.json</code> is served from <code className="num">public/</code>.
+          </p>
+        </div>
+      ) : !data ? (
+        <div className="min-h-screen grid place-items-center text-muted">Loading…</div>
+      ) : (
+        <ReadyContent
+          data={data}
+          selected={selected}
+          setSelected={setSelected}
+          onlyPriority={onlyPriority}
+          setOnlyPriority={setOnlyPriority}
+          poolIds={poolIds}
+          setPoolIds={setPoolIds}
+          selectedCreator={selectedCreator}
+          shown={shown}
+          top={top}
+          togglePool={togglePool}
+          poolBudget={poolBudget}
+          poolMarkets={poolMarkets}
+        />
+      )}
+    </div>
+  );
+}
+
+function ReadyContent({
+  data,
+  selected,
+  setSelected,
+  onlyPriority,
+  setOnlyPriority,
+  poolIds,
+  setPoolIds,
+  selectedCreator,
+  shown,
+  top,
+  togglePool,
+  poolBudget,
+  poolMarkets,
+}: {
+  data: Dataset;
+  selected: string | null;
+  setSelected: (id: string | null) => void;
+  onlyPriority: boolean;
+  setOnlyPriority: (v: boolean) => void;
+  poolIds: Set<string>;
+  setPoolIds: (v: Set<string>) => void;
+  selectedCreator: Creator | null;
+  shown: Creator[];
+  top: Creator[];
+  togglePool: (id: string) => void;
+  poolBudget: { min: number; max: number; unpriced: number };
+  poolMarkets: [string, number][];
+}) {
+  const f = data.meta.finding;
+
+  return (
+    <>
       {/* 1 · FINDING */}
       <section className="max-w-6xl mx-auto px-6 pt-16 pb-14 animate-rise">
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-5">
@@ -214,7 +280,7 @@ export default function LinkVerse() {
       )}
 
       {selectedCreator && <Kit creator={selectedCreator} onClose={() => setSelected(null)} />}
-    </div>
+    </>
   );
 }
 
