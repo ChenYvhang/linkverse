@@ -34,7 +34,7 @@ function summarize(categoryId: CategoryId | null, product: string): string {
 }
 
 // Calls the /api/diagnose Vercel serverless function, which talks to
-// DeepSeek server-side (see web/api/diagnose.ts). Only runs under `vercel
+// Gemini server-side (see web/api/diagnose.ts). Only runs under `vercel
 // dev` or a real Vercel deploy — under plain `vite dev`, or any network
 // hiccup or timeout, this resolves to {done:true, ok:false} rather than
 // throwing or hanging, so the chat can fall back to manual category
