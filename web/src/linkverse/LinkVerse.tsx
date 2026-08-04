@@ -3,7 +3,6 @@ import { useData, type Creator, type Dataset } from "./useData";
 import Scope, { isPriority } from "./Scope";
 import Kit from "./Kit";
 import Onboarding from "./Onboarding";
-import CategoryTabs from "./CategoryTabs";
 import OnboardingStatus from "./OnboardingStatus";
 import { CATEGORIES, type CategoryId } from "./categories";
 
@@ -17,12 +16,28 @@ export default function LinkVerse() {
   const [selected, setSelected] = useState<string | null>(null);
   const [onlyPriority, setOnlyPriority] = useState(false);
   const [poolIds, setPoolIds] = useState<Set<string>>(new Set());
+  // Bumped on reset to remount <Onboarding>, clearing its chat state along
+  // with the category it had routed to.
+  const [onboardingKey, setOnboardingKey] = useState(0);
 
   useEffect(() => {
     setSelected(null);
     setOnlyPriority(false);
     setPoolIds(new Set());
   }, [categoryId]);
+
+  function handleDiagnosed(id: CategoryId) {
+    setCategoryId(id);
+    requestAnimationFrame(() => {
+      document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
+  function handleReset() {
+    setCategoryId(CATEGORIES[0].id);
+    setOnboardingKey((k) => k + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const selectedCreator = useMemo(
     () => data?.creators.find((c) => c.id === selected) ?? null,
@@ -65,7 +80,12 @@ export default function LinkVerse() {
       {/* top bar */}
       <header className="border-b border-line bg-surface/80 backdrop-blur sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center gap-4">
-          <span className="font-display font-extrabold tracking-tight text-ink text-lg">LinkVerse</span>
+          <button
+            onClick={handleReset}
+            className="font-display font-extrabold tracking-tight text-ink text-lg hover:opacity-70 transition-opacity"
+          >
+            LinkVerse
+          </button>
           <span className="hidden sm:inline text-xs text-muted border-l border-line pl-4">
             Find breakout creators before they blow up
           </span>
@@ -75,11 +95,10 @@ export default function LinkVerse() {
             </span>
           )}
         </div>
-        <CategoryTabs categories={CATEGORIES} selected={categoryId} onSelect={setCategoryId} />
       </header>
 
       {category.status === "onboarding" ? (
-        <OnboardingStatus category={category} sampleData={data} error={error} />
+        <OnboardingStatus category={category} sampleData={data} error={error} onBack={handleReset} />
       ) : error ? (
         <div className="min-h-screen grid place-items-center px-6 text-center">
           <p className="text-muted">
@@ -104,6 +123,8 @@ export default function LinkVerse() {
           togglePool={togglePool}
           poolBudget={poolBudget}
           poolMarkets={poolMarkets}
+          onDiagnosed={handleDiagnosed}
+          onboardingKey={onboardingKey}
         />
       )}
     </div>
@@ -124,6 +145,8 @@ function ReadyContent({
   togglePool,
   poolBudget,
   poolMarkets,
+  onDiagnosed,
+  onboardingKey,
 }: {
   data: Dataset;
   selected: string | null;
@@ -138,6 +161,8 @@ function ReadyContent({
   togglePool: (id: string) => void;
   poolBudget: { min: number; max: number; unpriced: number };
   poolMarkets: [string, number][];
+  onDiagnosed: (id: CategoryId) => void;
+  onboardingKey: number;
 }) {
   const f = data.meta.finding;
 
@@ -186,7 +211,7 @@ function ReadyContent({
         </p>
       </section>
 
-      <Onboarding />
+      <Onboarding key={onboardingKey} onDiagnosed={onDiagnosed} />
 
       {/* 2 · EVIDENCE (scope + top picks) */}
       <section id="evidence" className="border-t border-line bg-surface">

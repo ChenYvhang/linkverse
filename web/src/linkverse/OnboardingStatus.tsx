@@ -5,10 +5,12 @@ export default function OnboardingStatus({
   category,
   sampleData,
   error,
+  onBack,
 }: {
   category: CategoryDef;
   sampleData: Dataset | null;
   error: string | null;
+  onBack: () => void;
 }) {
   return (
     <div className="min-h-[60vh] grid place-items-center px-6">
@@ -42,6 +44,13 @@ export default function OnboardingStatus({
             <span className="text-xs text-muted">Structure ready — waiting on data.</span>
           </div>
         )}
+
+        <button
+          onClick={onBack}
+          className="block mx-auto mt-8 text-sm font-medium text-accent hover:underline"
+        >
+          ← Back to start
+        </button>
       </div>
     </div>
   );
