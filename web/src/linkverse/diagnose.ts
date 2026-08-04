@@ -4,7 +4,8 @@ export type ConversationTurn = { role: "assistant" | "user"; text: string };
 
 export type DiagnosisResult =
   | { done: false; question: string }
-  | { done: true; categoryId: CategoryId | null; confidence: number; summary: string };
+  | { done: true; ok: true; categoryId: CategoryId | null; confidence: number; summary: string }
+  | { done: true; ok: false };
 
 type ApiResponse =
   | { type: "question"; text: string }
@@ -17,6 +18,8 @@ type ApiResponse =
       audience: string;
       confidence: number;
     };
+
+const REQUEST_TIMEOUT_MS = 12_000;
 
 function asKnownCategory(id: string | null): CategoryId | null {
   return id !== null && CATEGORIES.some((c) => c.id === id) ? (id as CategoryId) : null;
@@ -31,16 +34,22 @@ function summarize(categoryId: CategoryId | null, product: string): string {
 }
 
 // Calls the /api/diagnose Vercel serverless function, which talks to
-// DeepSeek server-side (see web/api/diagnose.ts — the API key never reaches
-// the browser). That function only runs under `vercel dev` or a real Vercel
-// deploy, never plain `vite dev`, so a fetch failure there is expected in
-// local dev and handled the same as any other network/API error below.
+// DeepSeek server-side (see web/api/diagnose.ts). Only runs under `vercel
+// dev` or a real Vercel deploy — under plain `vite dev`, or any network
+// hiccup or timeout, this resolves to {done:true, ok:false} rather than
+// throwing or hanging, so the chat can fall back to manual category
+// selection instead of ever stalling on a blank/frozen state (important
+// live-demo requirement — see Onboarding.tsx's manual-fallback UI).
 export async function diagnoseCompany(conversation: ConversationTurn[]): Promise<DiagnosisResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
     const res = await fetch("/api/diagnose", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversation }),
+      signal: controller.signal,
     });
     if (!res.ok) throw new Error(`/api/diagnose responded ${res.status}`);
 
@@ -52,17 +61,14 @@ export async function diagnoseCompany(conversation: ConversationTurn[]): Promise
     const categoryId = asKnownCategory(data.category);
     return {
       done: true,
+      ok: true,
       categoryId,
       confidence: data.confidence,
       summary: summarize(categoryId, data.product),
     };
   } catch {
-    return {
-      done: true,
-      categoryId: null,
-      confidence: 0,
-      summary:
-        "Couldn't reach the diagnosis service just now — this needs `vercel dev` or a Vercel deploy to answer live.",
-    };
+    return { done: true, ok: false };
+  } finally {
+    clearTimeout(timeout);
   }
 }

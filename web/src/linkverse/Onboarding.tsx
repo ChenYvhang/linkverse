@@ -31,12 +31,21 @@ const FIXED_QUESTIONS: Question[] = [
   },
 ];
 
+// Canned Insta360 answers for the "Fill example" demo button — avoids live
+// typing mistakes on stage. Keyed by FIXED_QUESTIONS id.
+const EXAMPLE_ANSWERS: Record<string, string> = {
+  company: "We make Insta360 action cameras for extreme sports.",
+  product: "The Insta360 X5, our new 360° waterproof action camera.",
+  market: "North America and Western Europe",
+  audience: "Skiers, surfers, and mountain bikers, 18–35",
+};
+
 const MAX_FOLLOW_UPS = 2;
 const NUDGE = "Could you tell me a bit more? Even a short phrase helps.";
 const MIN_ANSWER_LENGTH = 3;
 
 type ChatMessage = { role: "assistant" | "user"; text: string };
-type Diagnosis = Extract<DiagnosisResult, { done: true }>;
+type Diagnosis = Extract<DiagnosisResult, { done: true; ok: true }>;
 
 export default function Onboarding({
   onDiagnosed,
@@ -56,6 +65,10 @@ export default function Onboarding({
   const [nudgedFor, setNudgedFor] = useState<string | null>(null);
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+  // Set when diagnoseCompany() couldn't complete (network error, timeout,
+  // missing API key, etc). Never show a blank/stuck chat — let the presenter
+  // pick a category by hand and keep the demo moving.
+  const [manualFallback, setManualFallback] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,36 +79,38 @@ export default function Onboarding({
     setDiagnosing(true);
     const result = await diagnoseCompany(conv);
 
-    if (!result.done && followUpCount < MAX_FOLLOW_UPS) {
-      setMessages((m) => [...m, { role: "assistant", text: result.question }]);
-      setConversation([...conv, { role: "assistant", text: result.question }]);
-      setFollowUpQuestion(result.question);
-      setFollowUpCount((n) => n + 1);
+    if (!result.done) {
+      if (followUpCount < MAX_FOLLOW_UPS) {
+        setMessages((m) => [...m, { role: "assistant", text: result.question }]);
+        setConversation([...conv, { role: "assistant", text: result.question }]);
+        setFollowUpQuestion(result.question);
+        setFollowUpCount((n) => n + 1);
+        setDiagnosing(false);
+        return;
+      }
+      // Safety net: never stall the chat waiting on more clarification than
+      // we budgeted for — commit to an honest no-match rather than asking
+      // forever.
+      setDiagnosis({ done: true, ok: true, categoryId: null, confidence: 0, summary: "Thanks — that's enough to go on." });
       setDiagnosing(false);
       return;
     }
 
-    // Safety net: never stall the chat waiting on more clarification than we
-    // budgeted for — commit to whatever we have, treating "still unsure" as
-    // an honest no-match rather than forcing a category.
-    const finalResult: Diagnosis = result.done
-      ? result
-      : {
-          done: true,
-          categoryId: null,
-          confidence: 0,
-          summary: "Thanks — we couldn't confidently match this to one of our demo categories yet.",
-        };
-
-    setDiagnosis(finalResult);
-    setMessages((m) => [...m, { role: "assistant", text: finalResult.summary }]);
     setDiagnosing(false);
+
+    if (!result.ok) {
+      setManualFallback(true);
+      return;
+    }
+
+    setDiagnosis(result);
+    setMessages((m) => [...m, { role: "assistant", text: result.summary }]);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = input.trim();
-    if (!trimmed || diagnosing || diagnosis) return;
+    if (!trimmed || diagnosing || diagnosis || manualFallback) return;
 
     const nudgeKey = followUpQuestion ?? `fixed:${step}`;
     if (trimmed.length < MIN_ANSWER_LENGTH && nudgedFor !== nudgeKey) {
@@ -132,6 +147,44 @@ export default function Onboarding({
     }
   }
 
+  // Demo aid: instantly plays out the whole fixed script with canned
+  // Insta360 answers, then runs the same real diagnosis call a typed-out
+  // answer would — no live typing required on stage.
+  async function fillExample() {
+    if (diagnosing) return;
+
+    const newMessages: ChatMessage[] = [];
+    const newConversation: ConversationTurn[] = [];
+    for (const q of FIXED_QUESTIONS) {
+      newMessages.push({ role: "assistant", text: q.prompt });
+      newConversation.push({ role: "assistant", text: q.prompt });
+      const answer = EXAMPLE_ANSWERS[q.id];
+      newMessages.push({ role: "user", text: answer });
+      newConversation.push({ role: "user", text: answer });
+    }
+
+    setDiagnosis(null);
+    setManualFallback(false);
+    setFollowUpQuestion(null);
+    setFollowUpCount(0);
+    setNudgedFor(null);
+    setStep(FIXED_QUESTIONS.length);
+    setMessages(newMessages);
+    setConversation(newConversation);
+    setInput("");
+
+    await runDiagnosis(newConversation);
+  }
+
+  function handleManualPick(id: CategoryId) {
+    const label = CATEGORIES.find((c) => c.id === id)?.label ?? id;
+    const summary = `You picked ${label} manually — no live diagnosis was available.`;
+    setManualFallback(false);
+    setDiagnosis({ done: true, ok: true, categoryId: id, confidence: 0, summary });
+    setMessages((m) => [...m, { role: "assistant", text: summary }]);
+    onDiagnosed(id);
+  }
+
   const done = diagnosis !== null;
   const placeholder = step < FIXED_QUESTIONS.length ? FIXED_QUESTIONS[step].placeholder : "Type your answer…";
   const categoryLabel = diagnosis?.categoryId
@@ -141,8 +194,20 @@ export default function Onboarding({
   return (
     <section className="border-y border-line bg-gradient-to-b from-paper to-surface">
       <div className="max-w-3xl mx-auto px-6 py-14">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-2 text-center">
-          Tell us about your product
+        <div className="flex items-center justify-center gap-3 mb-2">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold text-center">
+            Tell us about your product
+          </div>
+          {!done && !manualFallback && (
+            <button
+              onClick={fillExample}
+              disabled={diagnosing}
+              className="text-[11px] font-semibold text-accent border border-accent/30 rounded-full px-2.5 py-0.5
+                hover:bg-accent hover:text-white transition-colors disabled:opacity-50"
+            >
+              ⚡ Fill example (Insta360)
+            </button>
+          )}
         </div>
         <h2 className="font-display font-bold text-ink text-2xl mb-6 text-center">
           Describe your company and product — LinkVerse will ask a few quick questions.
@@ -164,15 +229,23 @@ export default function Onboarding({
               ))}
               {diagnosing && (
                 <div className="flex justify-start">
-                  <div className="max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed bg-paper border border-line text-muted italic">
-                    Thinking…
+                  <div className="max-w-[80%] rounded-xl px-4 py-3 bg-paper border border-line">
+                    <TypingDots />
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {!done ? (
+          {manualFallback ? (
+            <ManualCategoryPicker
+              onPick={handleManualPick}
+              onRetry={() => {
+                setManualFallback(false);
+                void runDiagnosis(conversation);
+              }}
+            />
+          ) : !done ? (
             <>
               {messages.length === 1 && (
                 <p className="text-ink font-medium mb-3">{messages[0].text}</p>
@@ -221,5 +294,53 @@ export default function Onboarding({
         </div>
       </div>
     </section>
+  );
+}
+
+function TypingDots() {
+  return (
+    <div className="flex items-center gap-1 h-4" aria-label="Thinking" role="status">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-1.5 h-1.5 rounded-full bg-muted animate-bounce"
+          style={{ animationDelay: `${i * 0.15}s` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ManualCategoryPicker({
+  onPick,
+  onRetry,
+}: {
+  onPick: (id: CategoryId) => void;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.06] px-4 py-3.5">
+      <div className="text-[10px] uppercase tracking-wider text-amber-700 font-semibold mb-1.5">
+        Diagnosis unavailable
+      </div>
+      <p className="text-sm text-ink/80 leading-relaxed mb-3">
+        Couldn't reach the diagnosis service just now. Pick a category yourself to keep going:
+      </p>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => onPick(c.id)}
+            className="text-sm font-medium text-ink border border-line rounded-lg px-3 py-1.5
+              hover:border-accent hover:text-accent transition-colors"
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <button onClick={onRetry} className="text-xs font-medium text-muted hover:text-accent transition-colors">
+        ↻ Try the diagnosis again
+      </button>
+    </div>
   );
 }
