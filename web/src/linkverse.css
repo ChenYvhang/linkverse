@@ -16,6 +16,7 @@
   --color-line: #d8dce2;
   --color-muted: #737a85;
   --color-accent: #1f35e0;
+  --color-accent-2: #5b6bf0;
 
   --animate-rise: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-slide: slide 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -32,7 +33,11 @@
 
 html, body, #root { height: 100%; }
 body {
-  background: var(--color-paper);
+  background:
+    radial-gradient(1100px 640px at 12% -8%, rgba(31, 53, 224, 0.07), transparent 60%),
+    radial-gradient(900px 520px at 100% 4%, rgba(91, 107, 240, 0.06), transparent 55%),
+    var(--color-paper);
+  background-attachment: fixed;
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -40,6 +45,15 @@ body {
 
 /* numeric readouts */
 .num { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+
+/* gradient wordmark / headline / stat treatment — reused wherever we want
+   the ultramarine signal hue to read as a gradient instead of a flat fill */
+.text-gradient {
+  background-image: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

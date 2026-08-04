@@ -192,7 +192,7 @@ export default function Onboarding({
     : null;
 
   return (
-    <section className="border-y border-line bg-gradient-to-b from-paper to-surface">
+    <section className="border-y border-line bg-gradient-to-b from-paper via-accent/[0.03] to-surface">
       <div className="max-w-3xl mx-auto px-6 py-14">
         <div className="flex items-center justify-center gap-3 mb-2">
           <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold text-center">

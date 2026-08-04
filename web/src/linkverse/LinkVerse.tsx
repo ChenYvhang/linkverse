@@ -87,10 +87,11 @@ export default function LinkVerse() {
     <div className="min-h-screen">
       {/* top bar */}
       <header className="border-b border-line bg-surface/80 backdrop-blur sticky top-0 z-20">
+        <div className="h-[3px] bg-gradient-to-r from-accent via-accent-2 to-accent/20" />
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center gap-4">
           <button
             onClick={handleReset}
-            className="font-display font-extrabold tracking-tight text-ink text-lg hover:opacity-70 transition-opacity"
+            className="text-gradient font-display font-extrabold tracking-tight text-lg hover:opacity-80 transition-opacity"
           >
             LinkVerse
           </button>
@@ -184,7 +185,7 @@ function ReadyContent({
           Your product in. The right creators out.
         </div>
         <h1 className="font-display font-extrabold text-ink leading-[1.05] text-[clamp(2rem,5vw,3.4rem)] max-w-3xl">
-          The fastest way to find creators who fit your brand.
+          The fastest way to find <span className="text-gradient">creators who fit your brand</span>.
         </h1>
         <p className="mt-2 text-xs text-muted">
           Demo tuned for Insta360 — full product-input matching coming next.
@@ -239,7 +240,7 @@ function ReadyContent({
               <span className="text-accent font-medium">Blue</span> dots in the top-right are the ones to sign first;
               a white ring means a full script is ready. Click any dot for its kit.
             </p>
-            <div className="rounded-xl border border-line p-2">
+            <div className="rounded-xl border border-line p-2 shadow-[0_0_0_1px_rgba(31,53,224,0.05),0_16px_40px_-20px_rgba(31,53,224,0.25)]">
               <Scope creators={shown} selected={selected} onSelect={setSelected} />
             </div>
           </div>
@@ -291,7 +292,7 @@ function ReadyContent({
 
       {poolIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-surface
-          border border-line rounded-full pl-5 pr-3 py-2.5 shadow-lg animate-slide">
+          border border-line rounded-full pl-5 pr-3 py-2.5 shadow-[0_0_0_1px_rgba(31,53,224,0.08),0_12px_32px_-12px_rgba(31,53,224,0.35)] animate-slide">
           <span className="text-sm text-ink">
             <span className="num font-semibold">{poolIds.size}</span> selected
           </span>
@@ -344,7 +345,7 @@ function UnmatchedStatus({ onBack }: { onBack: () => void }) {
 function Stat({ value, label, accent, big }: { value: string; label: string; accent?: boolean; big?: boolean }) {
   return (
     <div>
-      <div className={`num font-semibold ${big ? "text-4xl sm:text-5xl" : "text-2xl"} ${accent ? "text-accent" : "text-ink"}`}>
+      <div className={`num font-semibold ${big ? "text-4xl sm:text-5xl" : "text-2xl"} ${accent ? "text-gradient" : "text-ink"}`}>
         {value}
       </div>
       <div className="text-[11px] uppercase tracking-wider text-muted mt-1">{label}</div>

@@ -35,9 +35,15 @@ export default function Scope({
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto select-none" role="img"
       aria-label="Creators plotted by Potential and Resonance">
+      <defs>
+        <linearGradient id="priority-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="var(--color-accent)" />
+          <stop offset="100%" stopColor="var(--color-accent-2)" />
+        </linearGradient>
+      </defs>
       {/* priority zone tint (top-right) */}
       <rect x={zoneX} y={PAD - 8} width={W - PAD * 1.4 - zoneX + plot(0, "x")} height={zoneY - PAD + 8}
-        fill="var(--color-accent)" opacity="0.06" />
+        fill="url(#priority-gradient)" opacity="0.08" />
       {/* faint grid */}
       {[0, 25, 50, 75, 100].map((g) => (
         <g key={g} stroke="var(--color-line)" strokeWidth="1">
@@ -47,7 +53,7 @@ export default function Scope({
       ))}
       {/* priority reticle ring */}
       <circle cx={(zoneX + plot(100, "x")) / 2} cy={(zoneY + plot(100, "y")) / 2}
-        r="8" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" opacity="0.35" />
+        r="8" fill="none" stroke="url(#priority-gradient)" strokeWidth="1.5" opacity="0.5" />
 
       {/* HUD corner ticks — action-cam viewfinder cue */}
       {([[PAD, PAD], [W - PAD * 0.4, PAD], [PAD, H - PAD], [W - PAD * 0.4, H - PAD]] as const).map(
@@ -75,7 +81,7 @@ export default function Scope({
             onClick={() => onSelect(c.id)}>
             {sel && <circle cx={cx} cy={cy} r="11" fill="none" stroke="var(--color-accent)" strokeWidth="2" />}
             <circle cx={cx} cy={cy} r={sel ? 6 : pri ? 5 : 3.5}
-              fill={pri ? "var(--color-accent)" : "#aab0ba"}
+              fill={pri ? "url(#priority-gradient)" : "#aab0ba"}
               opacity={pri ? 0.9 : 0.55}
               stroke={c.hasScript ? "var(--color-surface)" : "none"} strokeWidth={c.hasScript ? 1.5 : 0} />
           </g>
