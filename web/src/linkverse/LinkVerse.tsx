@@ -19,6 +19,8 @@ export default function LinkVerse() {
   // Bumped on reset to remount <Onboarding>, clearing its chat state along
   // with the category it had routed to.
   const [onboardingKey, setOnboardingKey] = useState(0);
+  // True when diagnosis couldn't confidently match any known category.
+  const [unmatched, setUnmatched] = useState(false);
 
   useEffect(() => {
     setSelected(null);
@@ -26,7 +28,12 @@ export default function LinkVerse() {
     setPoolIds(new Set());
   }, [categoryId]);
 
-  function handleDiagnosed(id: CategoryId) {
+  function handleDiagnosed(id: CategoryId | null) {
+    if (id === null) {
+      setUnmatched(true);
+      return;
+    }
+    setUnmatched(false);
     setCategoryId(id);
     requestAnimationFrame(() => {
       document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth" });
@@ -35,6 +42,7 @@ export default function LinkVerse() {
 
   function handleReset() {
     setCategoryId(CATEGORIES[0].id);
+    setUnmatched(false);
     setOnboardingKey((k) => k + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -97,7 +105,9 @@ export default function LinkVerse() {
         </div>
       </header>
 
-      {category.status === "onboarding" ? (
+      {unmatched ? (
+        <UnmatchedStatus onBack={handleReset} />
+      ) : category.status === "onboarding" ? (
         <OnboardingStatus category={category} sampleData={data} error={error} onBack={handleReset} />
       ) : error ? (
         <div className="min-h-screen grid place-items-center px-6 text-center">
@@ -161,7 +171,7 @@ function ReadyContent({
   togglePool: (id: string) => void;
   poolBudget: { min: number; max: number; unpriced: number };
   poolMarkets: [string, number][];
-  onDiagnosed: (id: CategoryId) => void;
+  onDiagnosed: (id: CategoryId | null) => void;
   onboardingKey: number;
 }) {
   const f = data.meta.finding;
@@ -306,6 +316,28 @@ function ReadyContent({
 
       {selectedCreator && <Kit creator={selectedCreator} onClose={() => setSelected(null)} />}
     </>
+  );
+}
+
+function UnmatchedStatus({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="min-h-[60vh] grid place-items-center px-6">
+      <div className="max-w-md text-center">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-accent font-semibold mb-3">
+          No category match
+        </div>
+        <h1 className="font-display font-bold text-ink text-2xl mb-3">
+          We couldn't confidently place this product yet
+        </h1>
+        <p className="text-sm text-muted leading-relaxed">
+          It doesn't clearly fit any of LinkVerse's current demo categories. Try describing the
+          product a bit differently, or check back once more categories are onboarded.
+        </p>
+        <button onClick={onBack} className="block mx-auto mt-8 text-sm font-medium text-accent hover:underline">
+          ← Back to start
+        </button>
+      </div>
+    </div>
   );
 }
 

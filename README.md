@@ -286,17 +286,22 @@ npm run build          # tsc -b && vite build
 | `YOUTUBE_API_KEY` | Stage1 collection (YouTube Data API v3) | required |
 | `ZHIPU_API_KEY` | Stage3 vision analysis (GLM-4.6V-Flash, Zhipu) | required in cloud mode (`vision.py` also supports a local Ollama backend, where this isn't needed) |
 | `DASHSCOPE_API_KEY` | reserved (Alibaba Cloud DashScope) | unused currently — a Qwen vision model was considered during planning, GLM was chosen instead |
-| `DEEPSEEK_API_KEY` | all DeepSeek calls in Stage5/5b/5c/5d (decision cards, scripts, translation) | required |
+| `DEEPSEEK_API_KEY` | all DeepSeek calls in Stage5/5b/5c/5d (decision cards, scripts, translation); also used by `web/api/diagnose.ts` for the onboarding chat's product classification | required |
 
-The frontend itself needs no environment variables or keys — `dataset.json`/`linkverse.json` are
-static files produced at build time and contain no keys.
+The static frontend itself needs no keys — `dataset.json`/`linkverse.json` are build-time files
+with no secrets in them. The one exception is `web/api/diagnose.ts`, a Vercel serverless function
+that calls DeepSeek server-side to classify what a visitor describes in the onboarding chat; it
+reads `DEEPSEEK_API_KEY` from `process.env` and never exposes it to the browser.
 
 ---
 
 ## Deployment
 
 - **Vercel** (live): auto-deploys on every push to `main` via the GitHub integration; base path is
-  `/` (detected via `process.env.VERCEL` in `web/vite.config.ts`).
+  `/` (detected via `process.env.VERCEL` in `web/vite.config.ts`). Set `DEEPSEEK_API_KEY` under the
+  Vercel project's Settings → Environment Variables so `web/api/diagnose.ts` can reach DeepSeek;
+  locally, `vercel env pull web/.env.local` fetches it for `vercel dev` (plain `vite dev` never runs
+  this function at all).
 - **GitHub Pages**: `.github/workflows/deploy-web.yml` would trigger on a push to `main` touching
   `web/**`, deploying with a `/glimmer-scout/` base path — not currently enabled for this repo, and
   that base path would need updating to match this repo's actual name first.

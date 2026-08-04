@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CATEGORIES, type CategoryId } from "./categories";
-import {
-  diagnoseCompany,
-  FALLBACK_CATEGORY_ID,
-  type ConversationTurn,
-  type DiagnosisResult,
-} from "./diagnose";
+import { diagnoseCompany, type ConversationTurn, type DiagnosisResult } from "./diagnose";
 
 type Question = { id: string; prompt: string; placeholder: string };
 
@@ -43,7 +38,11 @@ const MIN_ANSWER_LENGTH = 3;
 type ChatMessage = { role: "assistant" | "user"; text: string };
 type Diagnosis = Extract<DiagnosisResult, { done: true }>;
 
-export default function Onboarding({ onDiagnosed }: { onDiagnosed: (categoryId: CategoryId) => void }) {
+export default function Onboarding({
+  onDiagnosed,
+}: {
+  onDiagnosed: (categoryId: CategoryId | null) => void;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", text: FIXED_QUESTIONS[0].prompt },
   ]);
@@ -68,24 +67,24 @@ export default function Onboarding({ onDiagnosed }: { onDiagnosed: (categoryId: 
     const result = await diagnoseCompany(conv);
 
     if (!result.done && followUpCount < MAX_FOLLOW_UPS) {
-      const displayQuestion = result.question.replace(/^\[followup\]\s*/, "");
-      setMessages((m) => [...m, { role: "assistant", text: displayQuestion }]);
+      setMessages((m) => [...m, { role: "assistant", text: result.question }]);
       setConversation([...conv, { role: "assistant", text: result.question }]);
-      setFollowUpQuestion(displayQuestion);
+      setFollowUpQuestion(result.question);
       setFollowUpCount((n) => n + 1);
       setDiagnosing(false);
       return;
     }
 
     // Safety net: never stall the chat waiting on more clarification than we
-    // budgeted for — commit to the best guess (or the fallback category).
+    // budgeted for — commit to whatever we have, treating "still unsure" as
+    // an honest no-match rather than forcing a category.
     const finalResult: Diagnosis = result.done
       ? result
       : {
           done: true,
-          categoryId: FALLBACK_CATEGORY_ID,
-          confidence: 0.4,
-          summary: "Thanks — that's enough to point you in the right direction.",
+          categoryId: null,
+          confidence: 0,
+          summary: "Thanks — we couldn't confidently match this to one of our demo categories yet.",
         };
 
     setDiagnosis(finalResult);
@@ -135,7 +134,9 @@ export default function Onboarding({ onDiagnosed }: { onDiagnosed: (categoryId: 
 
   const done = diagnosis !== null;
   const placeholder = step < FIXED_QUESTIONS.length ? FIXED_QUESTIONS[step].placeholder : "Type your answer…";
-  const categoryLabel = diagnosis ? CATEGORIES.find((c) => c.id === diagnosis.categoryId)?.label ?? "" : "";
+  const categoryLabel = diagnosis?.categoryId
+    ? CATEGORIES.find((c) => c.id === diagnosis.categoryId)?.label ?? null
+    : null;
 
   return (
     <section className="border-y border-line bg-gradient-to-b from-paper to-surface">
@@ -207,16 +208,13 @@ export default function Onboarding({ onDiagnosed }: { onDiagnosed: (categoryId: 
               <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-2">
                 Diagnosis
               </div>
-              <p className="text-sm text-ink/80 leading-relaxed">{diagnosis.summary}</p>
-              <p className="text-xs text-muted mt-1 mb-4">
-                This match is a placeholder while the real diagnosis backend is wired up.
-              </p>
+              <p className="text-sm text-ink/80 leading-relaxed mb-4">{diagnosis.summary}</p>
               <button
                 onClick={() => onDiagnosed(diagnosis.categoryId)}
                 className="text-sm font-medium text-accent border border-accent/30 rounded-lg px-4 py-2
                   hover:bg-accent hover:text-white transition-colors"
               >
-                See {categoryLabel} results →
+                {categoryLabel ? `See ${categoryLabel} results →` : "Continue →"}
               </button>
             </div>
           )}

@@ -4,48 +4,65 @@ export type ConversationTurn = { role: "assistant" | "user"; text: string };
 
 export type DiagnosisResult =
   | { done: false; question: string }
-  | { done: true; categoryId: CategoryId; confidence: number; summary: string };
+  | { done: true; categoryId: CategoryId | null; confidence: number; summary: string };
 
-export const FALLBACK_CATEGORY_ID: CategoryId = "action_camera";
+type ApiResponse =
+  | { type: "question"; text: string }
+  | {
+      type: "result";
+      company: string;
+      product: string;
+      category: string | null;
+      country: string;
+      audience: string;
+      confidence: number;
+    };
 
-// Stand-in for a real backend/LLM call. The onboarding UI only depends on
-// this function's signature and DiagnosisResult shape — swap the body for a
-// real request later without touching the chat flow.
-//
-// Mocked behavior: score the user's answers against each category's
-// keywords. If nothing matches yet and we haven't already asked a follow-up,
-// ask one clarifying question; otherwise commit to the best-scoring category
-// (falling back to action_camera if there's still no signal).
+function asKnownCategory(id: string | null): CategoryId | null {
+  return id !== null && CATEGORIES.some((c) => c.id === id) ? (id as CategoryId) : null;
+}
+
+function summarize(categoryId: CategoryId | null, product: string): string {
+  if (!categoryId) {
+    return "Thanks — we couldn't confidently match this to one of our demo categories yet.";
+  }
+  const label = CATEGORIES.find((c) => c.id === categoryId)?.label ?? categoryId;
+  return `Based on what you described, ${product || "this"} looks like a ${label.toLowerCase()} product.`;
+}
+
+// Calls the /api/diagnose Vercel serverless function, which talks to
+// DeepSeek server-side (see web/api/diagnose.ts — the API key never reaches
+// the browser). That function only runs under `vercel dev` or a real Vercel
+// deploy, never plain `vite dev`, so a fetch failure there is expected in
+// local dev and handled the same as any other network/API error below.
 export async function diagnoseCompany(conversation: ConversationTurn[]): Promise<DiagnosisResult> {
-  await new Promise((r) => setTimeout(r, 550));
+  try {
+    const res = await fetch("/api/diagnose", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation }),
+    });
+    if (!res.ok) throw new Error(`/api/diagnose responded ${res.status}`);
 
-  const userText = conversation
-    .filter((t) => t.role === "user")
-    .map((t) => t.text.toLowerCase())
-    .join(" ");
+    const data: ApiResponse = await res.json();
+    if (data.type === "question") {
+      return { done: false, question: data.text };
+    }
 
-  const scores = CATEGORIES.map((c) => ({
-    id: c.id,
-    score: c.keywords.reduce((n, kw) => n + (userText.includes(kw) ? 1 : 0), 0),
-  })).sort((a, b) => b.score - a.score);
-
-  const askedFollowUp = conversation.some((t) => t.role === "assistant" && t.text.startsWith("[followup] "));
-
-  if (scores[0].score === 0 && !askedFollowUp) {
+    const categoryId = asKnownCategory(data.category);
     return {
-      done: false,
-      question: "[followup] Could you describe the product itself — what does it look or feel like to use?",
+      done: true,
+      categoryId,
+      confidence: data.confidence,
+      summary: summarize(categoryId, data.product),
+    };
+  } catch {
+    return {
+      done: true,
+      categoryId: null,
+      confidence: 0,
+      summary:
+        "Couldn't reach the diagnosis service just now — this needs `vercel dev` or a Vercel deploy to answer live.",
     };
   }
-
-  const best = scores[0].score > 0 ? scores[0].id : FALLBACK_CATEGORY_ID;
-  const label = CATEGORIES.find((c) => c.id === best)?.label ?? best;
-  const confidence = scores[0].score > 0 ? Math.min(0.5 + scores[0].score * 0.15, 0.95) : 0.4;
-
-  return {
-    done: true,
-    categoryId: best,
-    confidence,
-    summary: `Based on what you described, this looks like a ${label.toLowerCase()} product.`,
-  };
 }
