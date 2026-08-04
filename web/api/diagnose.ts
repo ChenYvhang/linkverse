@@ -1,5 +1,3 @@
-import { CATEGORIES } from "../src/linkverse/categories";
-
 // Vercel serverless function — only runs on `vercel dev` or a real Vercel
 // deploy (preview/production), never under plain `vite dev`. Talks to
 // DeepSeek's OpenAI-compatible chat completions endpoint using
@@ -18,8 +16,18 @@ type ConversationTurn = { role: "assistant" | "user"; text: string };
 
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 
+// Keep in sync with web/src/linkverse/categories.ts. Duplicated (not
+// imported) so this function has no cross-directory source dependency for
+// Vercel's build/file-tracing step to resolve — keeps the failure surface
+// of this function down to "DeepSeek reachable or not".
+const CATEGORY_LIST: { id: string; label: string }[] = [
+  { id: "action_camera", label: "Action Cameras" },
+  { id: "cosmetics", label: "Cosmetics" },
+  { id: "home_fitness", label: "Home Fitness" },
+];
+
 function buildSystemPrompt(): string {
-  const categoryList = CATEGORIES.map((c) => `- "${c.id}": ${c.label}`).join("\n");
+  const categoryList = CATEGORY_LIST.map((c) => `- "${c.id}": ${c.label}`).join("\n");
   return `You are the product-diagnosis assistant behind LinkVerse, a brand-to-creator matching demo. \
 You're given a conversation where the user has already answered what their company does, which \
 product they're promoting, their target country/region, and their target audience.
@@ -44,32 +52,35 @@ code fences.`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
-
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    res.status(500).json({ error: "DEEPSEEK_API_KEY is not configured" });
-    return;
-  }
-
-  const body = req.body as { conversation?: unknown } | undefined;
-  const conversation: ConversationTurn[] = Array.isArray(body?.conversation)
-    ? (body.conversation as ConversationTurn[])
-    : [];
-  if (conversation.length === 0) {
-    res.status(400).json({ error: "conversation is required" });
-    return;
-  }
-
-  const messages = [
-    { role: "system", content: buildSystemPrompt() },
-    ...conversation.map((t) => ({ role: t.role, content: t.text })),
-  ];
-
+  // Everything below is wrapped in one try/catch — this function must always
+  // resolve with clean JSON, never an uncaught exception (which Vercel
+  // surfaces to callers as an opaque FUNCTION_INVOCATION_FAILED 500).
   try {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      res.status(500).json({ error: "DEEPSEEK_API_KEY is not configured" });
+      return;
+    }
+
+    const body = req.body as { conversation?: unknown } | undefined;
+    const conversation: ConversationTurn[] = Array.isArray(body?.conversation)
+      ? (body.conversation as ConversationTurn[])
+      : [];
+    if (conversation.length === 0) {
+      res.status(400).json({ error: "conversation is required" });
+      return;
+    }
+
+    const messages = [
+      { role: "system", content: buildSystemPrompt() },
+      ...conversation.map((t) => ({ role: t.role, content: t.text })),
+    ];
+
     const upstream = await fetch(DEEPSEEK_URL, {
       method: "POST",
       headers: {
@@ -91,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const payload = await upstream.json();
-    const content = payload.choices?.[0]?.message?.content;
+    const content = payload?.choices?.[0]?.message?.content;
     if (typeof content !== "string") {
       res.status(502).json({ error: "DeepSeek response had no content" });
       return;
