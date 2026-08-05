@@ -58,6 +58,9 @@ stereotypes, or "this is usually true of that kind of product." Every value must
 the user actually typed. If the target country, target audience, or desired creator type hasn't been \
 stated yet, you MUST ask about it — do not default it to something like "Global" or invent a \
 plausible-sounding audience.
+- If the user explicitly names one of the category labels/ids above at any point — in any answer, \
+not just when describing the product — treat that as strong, confident evidence for the "category" \
+field. Don't second-guess it later or lose track of it while you keep gathering the other four things.
 - "Company" and "product" are different things: company is what the business does broadly; product \
 is the specific item/model/service being promoted right now. A one-line company description on its \
 own does NOT also answer the product, country, audience, or creator-type questions — keep asking \

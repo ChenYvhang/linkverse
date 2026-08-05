@@ -53,10 +53,18 @@ export default function Onboarding({
   // pick a category by hand and keep the demo moving.
   const [manualFallback, setManualFallback] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, diagnosing]);
+
+  // `disabled` drops focus while waiting on Gemini; restore it the moment
+  // the input's usable again so the next answer can be typed immediately,
+  // no click required.
+  useEffect(() => {
+    if (!diagnosing && !diagnosis && !manualFallback) inputRef.current?.focus();
+  }, [diagnosing, diagnosis, manualFallback]);
 
   async function runDiagnosis(conv: ConversationTurn[], turnsSoFar: number) {
     setDiagnosing(true);
@@ -194,6 +202,7 @@ export default function Onboarding({
                     focus-within:shadow-[0_0_0_4px_rgba(31,53,224,0.15)] transition-shadow"
                 >
                   <input
+                    ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder={placeholder}
