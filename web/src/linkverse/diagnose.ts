@@ -16,6 +16,7 @@ type ApiResponse =
       category: string | null;
       country: string;
       audience: string;
+      creatorType?: string;
       confidence: number;
     };
 
@@ -25,12 +26,13 @@ function asKnownCategory(id: string | null): CategoryId | null {
   return id !== null && CATEGORIES.some((c) => c.id === id) ? (id as CategoryId) : null;
 }
 
-function summarize(categoryId: CategoryId | null, product: string): string {
+function summarize(categoryId: CategoryId | null, product: string, creatorType?: string): string {
   if (!categoryId) {
     return "Thanks — we couldn't confidently match this to one of our demo categories yet.";
   }
   const label = CATEGORIES.find((c) => c.id === categoryId)?.label ?? categoryId;
-  return `Based on what you described, ${product || "this"} looks like a ${label.toLowerCase()} product.`;
+  const base = `Based on what you described, ${product || "this"} looks like a ${label.toLowerCase()} product.`;
+  return creatorType ? `${base} Sounds like you'd want creators who are ${creatorType.toLowerCase()}.` : base;
 }
 
 // Calls the /api/diagnose Vercel serverless function, which talks to
@@ -64,7 +66,7 @@ export async function diagnoseCompany(conversation: ConversationTurn[]): Promise
       ok: true,
       categoryId,
       confidence: data.confidence,
-      summary: summarize(categoryId, data.product),
+      summary: summarize(categoryId, data.product, data.creatorType),
     };
   } catch {
     return { done: true, ok: false };

@@ -2,47 +2,32 @@ import { useEffect, useRef, useState } from "react";
 import { CATEGORIES, type CategoryId } from "./categories";
 import { diagnoseCompany, type ConversationTurn, type DiagnosisResult } from "./diagnose";
 
-type Question = { id: string; prompt: string; placeholder: string };
-
-// Fixed opening script — collects the minimum LinkVerse needs (company/
-// product, target market, target audience). Once these are answered,
-// diagnoseCompany() takes over and may ask up to MAX_FOLLOW_UPS more
-// questions before committing to a category.
-const FIXED_QUESTIONS: Question[] = [
-  {
-    id: "company",
-    prompt: "What does your company do?",
-    placeholder: "e.g. We make action cameras for extreme sports",
-  },
-  {
-    id: "product",
-    prompt: "Which product are you promoting?",
-    placeholder: "e.g. Our new 360° waterproof camera",
-  },
-  {
-    id: "market",
-    prompt: "Which country or region are you marketing to?",
-    placeholder: "e.g. North America and Western Europe",
-  },
-  {
-    id: "audience",
-    prompt: "Who's your target audience?",
-    placeholder: "e.g. Skiers and snowboarders, 18–35",
-  },
-];
+// The very first message is static (no point calling Gemini before the user
+// has said anything). Every turn after that is fully dynamic — Gemini reads
+// the whole conversation, decides what's still missing among company/
+// product/country/audience/creator-type, and drives the rest of the chat
+// itself (see web/api/diagnose.ts's system prompt). There is no fixed
+// question script here anymore.
+const OPENING_QUESTION = "What does your company do? Tell us a bit about it.";
+const OPENING_PLACEHOLDER = "e.g. We make action cameras for extreme sports";
 
 // Canned Insta360 answers for the "Fill example" demo button — avoids live
-// typing mistakes on stage. Keyed by FIXED_QUESTIONS id.
-const EXAMPLE_ANSWERS: Record<string, string> = {
-  company: "We make Insta360 action cameras for extreme sports.",
-  product: "The Insta360 X5, our new 360° waterproof action camera.",
-  market: "North America and Western Europe",
-  audience: "Skiers, surfers, and mountain bikers, 18–35",
-};
+// typing mistakes on stage. Submitted one at a time (each click sends the
+// next one for real), since the exact question order/count is no longer
+// fixed — this just feeds Gemini the same information a live presenter
+// would type, topic by topic.
+const EXAMPLE_ANSWERS = [
+  "We make Insta360 action cameras for extreme sports.",
+  "The Insta360 X5, our new 360° waterproof action camera.",
+  "North America and Western Europe.",
+  "Skiers, surfers, and mountain bikers, 18–35.",
+  "High-energy, authentic outdoor athletes who film their own stunts — not overly polished.",
+];
 
-const MAX_FOLLOW_UPS = 2;
-const NUDGE = "Could you tell me a bit more? Even a short phrase helps.";
-const MIN_ANSWER_LENGTH = 3;
+// Safety net: never let the chat run forever waiting on Gemini to commit —
+// after this many user turns, force a finalize (honest no-match) instead of
+// continuing to ask questions.
+const MAX_TURNS = 9;
 
 type ChatMessage = { role: "assistant" | "user"; text: string };
 type Diagnosis = Extract<DiagnosisResult, { done: true; ok: true }>;
@@ -53,16 +38,14 @@ export default function Onboarding({
   onDiagnosed: (categoryId: CategoryId | null) => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", text: FIXED_QUESTIONS[0].prompt },
+    { role: "assistant", text: OPENING_QUESTION },
   ]);
   const [conversation, setConversation] = useState<ConversationTurn[]>([
-    { role: "assistant", text: FIXED_QUESTIONS[0].prompt },
+    { role: "assistant", text: OPENING_QUESTION },
   ]);
-  const [step, setStep] = useState(0);
-  const [followUpQuestion, setFollowUpQuestion] = useState<string | null>(null);
-  const [followUpCount, setFollowUpCount] = useState(0);
+  const [turnCount, setTurnCount] = useState(0);
   const [input, setInput] = useState("");
-  const [nudgedFor, setNudgedFor] = useState<string | null>(null);
+  const [exampleIndex, setExampleIndex] = useState(0);
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   // Set when diagnoseCompany() couldn't complete (network error, timeout,
@@ -75,28 +58,24 @@ export default function Onboarding({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, diagnosing]);
 
-  async function runDiagnosis(conv: ConversationTurn[]) {
+  async function runDiagnosis(conv: ConversationTurn[], turnsSoFar: number) {
     setDiagnosing(true);
     const result = await diagnoseCompany(conv);
+    setDiagnosing(false);
 
     if (!result.done) {
-      if (followUpCount < MAX_FOLLOW_UPS) {
+      if (turnsSoFar < MAX_TURNS) {
         setMessages((m) => [...m, { role: "assistant", text: result.question }]);
         setConversation([...conv, { role: "assistant", text: result.question }]);
-        setFollowUpQuestion(result.question);
-        setFollowUpCount((n) => n + 1);
-        setDiagnosing(false);
         return;
       }
-      // Safety net: never stall the chat waiting on more clarification than
-      // we budgeted for — commit to an honest no-match rather than asking
-      // forever.
-      setDiagnosis({ done: true, ok: true, categoryId: null, confidence: 0, summary: "Thanks — that's enough to go on." });
-      setDiagnosing(false);
+      // Never stall the chat past the turn budget — commit to an honest
+      // no-match rather than asking forever.
+      const summary = "Thanks — that's enough to go on.";
+      setDiagnosis({ done: true, ok: true, categoryId: null, confidence: 0, summary });
+      setMessages((m) => [...m, { role: "assistant", text: summary }]);
       return;
     }
-
-    setDiagnosing(false);
 
     if (!result.ok) {
       setManualFallback(true);
@@ -107,73 +86,32 @@ export default function Onboarding({
     setMessages((m) => [...m, { role: "assistant", text: result.summary }]);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = input.trim();
+  async function submitAnswer(text: string) {
+    const trimmed = text.trim();
     if (!trimmed || diagnosing || diagnosis || manualFallback) return;
 
-    const nudgeKey = followUpQuestion ?? `fixed:${step}`;
-    if (trimmed.length < MIN_ANSWER_LENGTH && nudgedFor !== nudgeKey) {
-      setMessages((m) => [...m, { role: "user", text: trimmed }, { role: "assistant", text: NUDGE }]);
-      setNudgedFor(nudgeKey);
-      setInput("");
-      return;
-    }
-
     const userMsg: ChatMessage = { role: "user", text: trimmed };
+    const convWithAnswer = [...conversation, userMsg];
+    const nextTurnCount = turnCount + 1;
+
+    setMessages((m) => [...m, userMsg]);
+    setConversation(convWithAnswer);
+    setTurnCount(nextTurnCount);
     setInput("");
 
-    if (step < FIXED_QUESTIONS.length) {
-      const nextStep = step + 1;
-      const convWithAnswer = [...conversation, userMsg];
-
-      if (nextStep < FIXED_QUESTIONS.length) {
-        const nextQ = FIXED_QUESTIONS[nextStep];
-        setMessages((m) => [...m, userMsg, { role: "assistant", text: nextQ.prompt }]);
-        setConversation([...convWithAnswer, { role: "assistant", text: nextQ.prompt }]);
-        setStep(nextStep);
-      } else {
-        setMessages((m) => [...m, userMsg]);
-        setConversation(convWithAnswer);
-        setStep(nextStep);
-        await runDiagnosis(convWithAnswer);
-      }
-    } else {
-      setMessages((m) => [...m, userMsg]);
-      const convWithAnswer = [...conversation, userMsg];
-      setConversation(convWithAnswer);
-      setFollowUpQuestion(null);
-      await runDiagnosis(convWithAnswer);
-    }
+    await runDiagnosis(convWithAnswer, nextTurnCount);
   }
 
-  // Demo aid: instantly plays out the whole fixed script with canned
-  // Insta360 answers, then runs the same real diagnosis call a typed-out
-  // answer would — no live typing required on stage.
-  async function fillExample() {
-    if (diagnosing) return;
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    void submitAnswer(input);
+  }
 
-    const newMessages: ChatMessage[] = [];
-    const newConversation: ConversationTurn[] = [];
-    for (const q of FIXED_QUESTIONS) {
-      newMessages.push({ role: "assistant", text: q.prompt });
-      newConversation.push({ role: "assistant", text: q.prompt });
-      const answer = EXAMPLE_ANSWERS[q.id];
-      newMessages.push({ role: "user", text: answer });
-      newConversation.push({ role: "user", text: answer });
-    }
-
-    setDiagnosis(null);
-    setManualFallback(false);
-    setFollowUpQuestion(null);
-    setFollowUpCount(0);
-    setNudgedFor(null);
-    setStep(FIXED_QUESTIONS.length);
-    setMessages(newMessages);
-    setConversation(newConversation);
-    setInput("");
-
-    await runDiagnosis(newConversation);
+  function fillExample() {
+    if (diagnosing || diagnosis || manualFallback || exampleIndex >= EXAMPLE_ANSWERS.length) return;
+    const next = EXAMPLE_ANSWERS[exampleIndex];
+    setExampleIndex((i) => i + 1);
+    void submitAnswer(next);
   }
 
   function handleManualPick(id: CategoryId) {
@@ -186,7 +124,7 @@ export default function Onboarding({
   }
 
   const done = diagnosis !== null;
-  const placeholder = step < FIXED_QUESTIONS.length ? FIXED_QUESTIONS[step].placeholder : "Type your answer…";
+  const placeholder = turnCount === 0 ? OPENING_PLACEHOLDER : "Type your answer…";
   const categoryLabel = diagnosis?.categoryId
     ? CATEGORIES.find((c) => c.id === diagnosis.categoryId)?.label ?? null
     : null;
@@ -198,7 +136,7 @@ export default function Onboarding({
           <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold text-center">
             Tell us about your product
           </div>
-          {!done && !manualFallback && (
+          {!done && !manualFallback && exampleIndex < EXAMPLE_ANSWERS.length && (
             <button
               onClick={fillExample}
               disabled={diagnosing}
@@ -210,7 +148,7 @@ export default function Onboarding({
           )}
         </div>
         <h2 className="font-display font-bold text-ink text-2xl mb-6 text-center">
-          Describe your company and product — LinkVerse will ask a few quick questions.
+          Describe your company and product — LinkVerse will chat it through with you.
         </h2>
 
         <div className="rounded-2xl border border-line bg-surface shadow-sm p-5">
@@ -242,7 +180,7 @@ export default function Onboarding({
               onPick={handleManualPick}
               onRetry={() => {
                 setManualFallback(false);
-                void runDiagnosis(conversation);
+                void runDiagnosis(conversation, turnCount);
               }}
             />
           ) : !done ? (
