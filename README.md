@@ -287,7 +287,7 @@ npm run build          # tsc -b && vite build
 | `ZHIPU_API_KEY` | Stage3 vision analysis (GLM-4.6V-Flash, Zhipu) | required in cloud mode (`vision.py` also supports a local Ollama backend, where this isn't needed) |
 | `DASHSCOPE_API_KEY` | reserved (Alibaba Cloud DashScope) | unused currently — a Qwen vision model was considered during planning, GLM was chosen instead |
 | `DEEPSEEK_API_KEY` | all DeepSeek calls in Stage5/5b/5c/5d (decision cards, scripts, translation) | required |
-| `GEMINI_API_KEY` | `web/api/diagnose.ts` (Gemini `gemini-2.5-flash`) for the onboarding chat's product classification | required for that feature |
+| `GEMINI_API_KEY` | `web/api/diagnose.ts` (Gemini `gemini-flash-latest`) for the onboarding chat's product classification | required for that feature |
 
 The static frontend itself needs no keys — `dataset.json`/`linkverse.json` are build-time files
 with no secrets in them. The one exception is `web/api/diagnose.ts`, a Vercel serverless function

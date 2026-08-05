@@ -15,7 +15,10 @@ type VercelResponse = {
 
 type ConversationTurn = { role: "assistant" | "user"; text: string };
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+// "gemini-2.5-flash" returns 404 ("no longer available to new users") for
+// keys created after Google's cutoff — using the "-latest" alias instead so
+// this doesn't silently break again as Google rotates model generations.
+const GEMINI_MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Keep in sync with web/src/linkverse/categories.ts. Duplicated (not
