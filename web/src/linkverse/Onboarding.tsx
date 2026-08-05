@@ -278,10 +278,9 @@ export default function Onboarding({
             </>
           ) : (
             <div className="rounded-lg border border-accent/25 bg-accent/[0.04] px-4 py-3.5">
-              <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-2">
+              <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-3">
                 Diagnosis
               </div>
-              <p className="text-sm text-ink/80 leading-relaxed mb-4">{diagnosis.summary}</p>
               <button
                 onClick={() => onDiagnosed(diagnosis.categoryId)}
                 className="text-sm font-medium text-accent border border-accent/30 rounded-lg px-4 py-2
