@@ -31,7 +31,7 @@ function summarize(categoryId: CategoryId | null, product: string, creatorType?:
     return "Thanks — we couldn't confidently match this to one of our demo categories yet.";
   }
   const label = CATEGORIES.find((c) => c.id === categoryId)?.label ?? categoryId;
-  const base = `Based on what you described, ${product || "this"} looks like a ${label.toLowerCase()} product.`;
+  const base = `Based on what you described, ${product || "this"} fits our ${label.toLowerCase()} category.`;
   return creatorType ? `${base} Sounds like you'd want creators who are ${creatorType.toLowerCase()}.` : base;
 }
 
