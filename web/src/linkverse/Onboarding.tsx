@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CATEGORIES, type CategoryId } from "./categories";
 import { diagnoseCompany, type ConversationTurn, type DiagnosisResult } from "./diagnose";
+import { DEMO_SCENARIOS, type DemoScenario } from "./demoScenarios";
 
 // The very first message is static (no point calling Gemini before the user
 // has said anything). Every turn after that is fully dynamic — Gemini reads
@@ -11,23 +12,16 @@ import { diagnoseCompany, type ConversationTurn, type DiagnosisResult } from "./
 const OPENING_QUESTION = "What does your company do? Tell us a bit about it.";
 const OPENING_PLACEHOLDER = "e.g. We make action cameras for extreme sports";
 
-// Canned Insta360 answers for the "Fill example" demo button — avoids live
-// typing mistakes on stage. Submitted one at a time (each click sends the
-// next one for real), since the exact question order/count is no longer
-// fixed — this just feeds Gemini the same information a live presenter
-// would type, topic by topic.
-const EXAMPLE_ANSWERS = [
-  "We make Insta360 action cameras for extreme sports.",
-  "The Insta360 X5, our new 360° waterproof action camera.",
-  "North America and Western Europe.",
-  "Skiers, surfers, and mountain bikers, 18–35.",
-  "High-energy, authentic outdoor athletes who film their own stunts — not overly polished.",
-];
-
 // Safety net: never let the chat run forever waiting on Gemini to commit —
 // after this many user turns, force a finalize (honest no-match) instead of
 // continuing to ask questions.
 const MAX_TURNS = 9;
+
+// Pacing for the scripted demo-scenario playback — enough to read as a real
+// back-and-forth, short enough not to drag during a live presentation.
+const SCENARIO_BEAT_MS = 550;
+const SCENARIO_THINK_MS = 900;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type ChatMessage = { role: "assistant" | "user"; text: string };
 type Diagnosis = Extract<DiagnosisResult, { done: true; ok: true }>;
@@ -45,9 +39,11 @@ export default function Onboarding({
   ]);
   const [turnCount, setTurnCount] = useState(0);
   const [input, setInput] = useState("");
-  const [exampleIndex, setExampleIndex] = useState(0);
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+  // True while a scripted demo scenario is playing itself out — no network
+  // calls happen during this, see playScenario().
+  const [playingScenario, setPlayingScenario] = useState(false);
   // Set when diagnoseCompany() couldn't complete (network error, timeout,
   // missing API key, etc). Never show a blank/stuck chat — let the presenter
   // pick a category by hand and keep the demo moving.
@@ -63,8 +59,8 @@ export default function Onboarding({
   // the input's usable again so the next answer can be typed immediately,
   // no click required.
   useEffect(() => {
-    if (!diagnosing && !diagnosis && !manualFallback) inputRef.current?.focus();
-  }, [diagnosing, diagnosis, manualFallback]);
+    if (!diagnosing && !diagnosis && !manualFallback && !playingScenario) inputRef.current?.focus();
+  }, [diagnosing, diagnosis, manualFallback, playingScenario]);
 
   async function runDiagnosis(conv: ConversationTurn[], turnsSoFar: number) {
     setDiagnosing(true);
@@ -96,7 +92,7 @@ export default function Onboarding({
 
   async function submitAnswer(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || diagnosing || diagnosis || manualFallback) return;
+    if (!trimmed || diagnosing || diagnosis || manualFallback || playingScenario) return;
 
     const userMsg: ChatMessage = { role: "user", text: trimmed };
     const convWithAnswer = [...conversation, userMsg];
@@ -115,11 +111,41 @@ export default function Onboarding({
     void submitAnswer(input);
   }
 
-  function fillExample() {
-    if (diagnosing || diagnosis || manualFallback || exampleIndex >= EXAMPLE_ANSWERS.length) return;
-    const next = EXAMPLE_ANSWERS[exampleIndex];
-    setExampleIndex((i) => i + 1);
-    void submitAnswer(next);
+  // Plays out a fully pre-written conversation (both sides) and lands on a
+  // hardcoded result — deliberately bypasses /api/diagnose entirely so a
+  // live demo never depends on Gemini being reachable. See demoScenarios.ts.
+  async function playScenario(scenario: DemoScenario) {
+    if (diagnosing || diagnosis || manualFallback || playingScenario) return;
+    setPlayingScenario(true);
+    setManualFallback(false);
+    setMessages([{ role: "assistant", text: scenario.questions[0] }]);
+    setConversation([{ role: "assistant", text: scenario.questions[0] }]);
+    setTurnCount(0);
+    setInput("");
+
+    for (let i = 0; i < scenario.answers.length; i++) {
+      await sleep(SCENARIO_BEAT_MS);
+      setMessages((m) => [...m, { role: "user", text: scenario.answers[i] }]);
+      const nextQuestion = scenario.questions[i + 1];
+      if (nextQuestion) {
+        await sleep(SCENARIO_BEAT_MS);
+        setMessages((m) => [...m, { role: "assistant", text: nextQuestion }]);
+      }
+    }
+
+    setDiagnosing(true);
+    await sleep(SCENARIO_THINK_MS);
+    setDiagnosing(false);
+
+    setDiagnosis({
+      done: true,
+      ok: true,
+      categoryId: scenario.categoryId,
+      confidence: scenario.confidence,
+      summary: scenario.summary,
+    });
+    setMessages((m) => [...m, { role: "assistant", text: scenario.summary }]);
+    setPlayingScenario(false);
   }
 
   function handleManualPick(id: CategoryId) {
@@ -140,21 +166,25 @@ export default function Onboarding({
   return (
     <section className="border-y border-line bg-gradient-to-b from-paper via-accent/[0.03] to-surface">
       <div className="max-w-3xl mx-auto px-6 py-14">
-        <div className="flex items-center justify-center gap-3 mb-2">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold text-center">
-            Tell us about your product
-          </div>
-          {!done && !manualFallback && exampleIndex < EXAMPLE_ANSWERS.length && (
-            <button
-              onClick={fillExample}
-              disabled={diagnosing}
-              className="text-[11px] font-semibold text-accent border border-accent/30 rounded-full px-2.5 py-0.5
-                hover:bg-accent hover:text-white transition-colors disabled:opacity-50"
-            >
-              ⚡ Fill example (Insta360)
-            </button>
-          )}
+        <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold text-center mb-3">
+          Tell us about your product
         </div>
+        {!done && !manualFallback && (
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+            <span className="text-[11px] text-muted">Start with example:</span>
+            {DEMO_SCENARIOS.map((s) => (
+              <button
+                key={s.categoryId}
+                onClick={() => void playScenario(s)}
+                disabled={diagnosing || playingScenario}
+                className="text-[11px] font-semibold text-accent border border-accent/30 rounded-full px-2.5 py-0.5
+                  hover:bg-accent hover:text-white transition-colors disabled:opacity-50"
+              >
+                ⚡ {s.buttonLabel}
+              </button>
+            ))}
+          </div>
+        )}
         <h2 className="font-display font-bold text-ink text-2xl mb-6 text-center">
           Describe your company and product — LinkVerse will chat it through with you.
         </h2>
@@ -208,14 +238,14 @@ export default function Onboarding({
                     placeholder={placeholder}
                     aria-label="Your answer"
                     autoFocus
-                    disabled={diagnosing}
+                    disabled={diagnosing || playingScenario}
                     className="w-full bg-surface rounded-2xl px-5 py-4 text-base text-ink
                       placeholder:text-muted focus:outline-none disabled:opacity-60"
                   />
                 </div>
                 <button
                   type="submit"
-                  disabled={diagnosing}
+                  disabled={diagnosing || playingScenario}
                   className="px-6 py-4 rounded-2xl bg-gradient-to-r from-accent to-[#5b6bf0] text-white
                     text-sm font-semibold hover:opacity-90 transition-opacity shrink-0 disabled:opacity-60"
                 >
