@@ -432,8 +432,21 @@ function PreparingBadge({ label }: { label: string }) {
   );
 }
 
+// "Unlock" plays out a fake ~2s payment step, then honestly discloses it's
+// a demo — no card fields, no payment SDK, no network call. Pure UI
+// simulation to show a revenue model exists, nothing more.
+type UnlockPhase = "idle" | "processing" | "done";
+const UNLOCK_SIMULATION_MS = 2000;
+
 function PaywallOverlay() {
-  const [unlockClicked, setUnlockClicked] = useState(false);
+  const [phase, setPhase] = useState<UnlockPhase>("idle");
+
+  useEffect(() => {
+    if (phase !== "processing") return;
+    const timer = setTimeout(() => setPhase("done"), UNLOCK_SIMULATION_MS);
+    return () => clearTimeout(timer);
+  }, [phase]);
+
   return (
     <div className="bg-surface border border-accent/30 rounded-2xl shadow-xl px-8 py-6 text-center max-w-sm">
       <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-2">Pro plan</div>
@@ -441,17 +454,36 @@ function PaywallOverlay() {
       <p className="text-sm text-muted mt-1.5 mb-4">
         Get full creator rankings for categories outside the demo set.
       </p>
-      {unlockClicked ? (
-        <p className="text-xs text-muted italic">Pro plan checkout isn't wired up in this demo yet.</p>
-      ) : (
+
+      {phase === "idle" && (
         <button
-          onClick={() => setUnlockClicked(true)}
+          onClick={() => setPhase("processing")}
           className="text-sm font-semibold text-white bg-accent rounded-lg px-5 py-2 hover:opacity-90 transition-opacity"
         >
           Unlock
         </button>
       )}
+      {phase === "processing" && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted">
+          <Spinner />
+          Processing payment…
+        </div>
+      )}
+      {phase === "done" && (
+        <p className="text-xs text-muted leading-relaxed">
+          This is demo mode — real payment integration ships in the release version.
+        </p>
+      )}
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <span
+      className="inline-block w-4 h-4 rounded-full border-2 border-accent/25 border-t-accent animate-spin"
+      aria-hidden="true"
+    />
   );
 }
 
