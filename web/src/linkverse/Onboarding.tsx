@@ -165,12 +165,9 @@ export default function Onboarding({
 
   return (
     <section className="border-y border-line bg-gradient-to-b from-paper via-accent/[0.03] to-surface">
-      <div className="max-w-3xl mx-auto px-6 py-14">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold text-center mb-3">
-          Tell us about your product
-        </div>
+      <div className="max-w-3xl mx-auto px-6 pt-2 pb-20">
         {!done && !manualFallback && (
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
             <span className="text-[11px] text-muted">Start with example:</span>
             {DEMO_SCENARIOS.map((s) => (
               <button
@@ -185,11 +182,8 @@ export default function Onboarding({
             ))}
           </div>
         )}
-        <h2 className="font-display font-bold text-ink text-2xl mb-6 text-center">
-          Describe your company and product — LinkVerse will chat it through with you.
-        </h2>
 
-        <div className="rounded-2xl border border-line bg-surface shadow-sm p-5">
+        <div className="rounded-2xl border border-line bg-surface shadow-lg shadow-accent/[0.06] p-6">
           {messages.length > 1 && (
             <div ref={scrollRef} className="space-y-2 max-h-72 overflow-y-auto pr-1 mb-4 scroll-smooth">
               {messages.map((m, i) => (
@@ -224,12 +218,12 @@ export default function Onboarding({
           ) : !done ? (
             <>
               {messages.length === 1 && (
-                <p className="text-ink font-medium mb-3">{messages[0].text}</p>
+                <p className="text-ink font-display font-bold text-xl mb-4 text-center">{messages[0].text}</p>
               )}
               <form onSubmit={handleSubmit} className="flex gap-3">
                 <div
-                  className="flex-1 rounded-2xl p-[1.5px] bg-gradient-to-r from-accent via-[#5b6bf0] to-accent/40
-                    focus-within:shadow-[0_0_0_4px_rgba(31,53,224,0.15)] transition-shadow"
+                  className="flex-1 rounded-2xl p-[2px] bg-gradient-to-r from-accent via-[#5b6bf0] to-accent/40
+                    focus-within:shadow-[0_0_0_5px_rgba(31,53,224,0.15)] transition-shadow"
                 >
                   <input
                     ref={inputRef}
@@ -239,15 +233,15 @@ export default function Onboarding({
                     aria-label="Your answer"
                     autoFocus
                     disabled={diagnosing || playingScenario}
-                    className="w-full bg-surface rounded-2xl px-5 py-4 text-base text-ink
+                    className="w-full bg-surface rounded-2xl px-6 py-5 text-lg text-ink
                       placeholder:text-muted focus:outline-none disabled:opacity-60"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={diagnosing || playingScenario}
-                  className="px-6 py-4 rounded-2xl bg-gradient-to-r from-accent to-[#5b6bf0] text-white
-                    text-sm font-semibold hover:opacity-90 transition-opacity shrink-0 disabled:opacity-60"
+                  className="px-8 py-5 rounded-2xl bg-gradient-to-r from-accent to-[#5b6bf0] text-white
+                    text-base font-semibold hover:opacity-90 transition-opacity shrink-0 disabled:opacity-60"
                 >
                   Send
                 </button>

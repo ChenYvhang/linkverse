@@ -27,6 +27,9 @@ export default function LinkVerse() {
   const [onboardingKey, setOnboardingKey] = useState(0);
   // True when diagnosis couldn't confidently match any known category.
   const [unmatched, setUnmatched] = useState(false);
+  // Results (ranking table or locked preview) stay hidden below the chat
+  // until a diagnosis actually lands — the landing page is chat-only.
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     setSelected(null);
@@ -35,20 +38,18 @@ export default function LinkVerse() {
   }, [categoryId]);
 
   function handleDiagnosed(id: CategoryId | null) {
-    if (id === null) {
-      setUnmatched(true);
-      return;
-    }
-    setUnmatched(false);
-    setCategoryId(id);
+    setUnmatched(id === null);
+    if (id !== null) setCategoryId(id);
+    setRevealed(true);
     requestAnimationFrame(() => {
-      document.getElementById("evidence")?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById("results")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 
   function handleReset() {
     setCategoryId(READY_CATEGORY.id);
     setUnmatched(false);
+    setRevealed(false);
     setOnboardingKey((k) => k + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -112,43 +113,65 @@ export default function LinkVerse() {
         </div>
       </header>
 
-      {error ? (
-        <div className="min-h-screen grid place-items-center px-6 text-center">
-          <p className="text-muted">
-            Couldn't load the dataset ({error}). Run <code className="num">npm run build</code> so{" "}
-            <code className="num">linkverse.json</code> is served from <code className="num">public/</code>.
-          </p>
+      {/* Landing: eyebrow + headline + chat — the whole first screen, always
+          shown. Nothing else renders until a diagnosis actually lands. */}
+      <section className="max-w-3xl mx-auto px-6 pt-20 pb-10 text-center animate-rise">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-5">
+          Your product in. The right creators out.
         </div>
-      ) : !data ? (
-        <div className="min-h-screen grid place-items-center text-muted">Loading…</div>
-      ) : unmatched ? (
-        <LockedPreview mockData={data} variant="paywall" onBack={handleReset} />
-      ) : category.status === "onboarding" ? (
-        <LockedPreview mockData={data} variant="preparing" category={category} onBack={handleReset} />
-      ) : (
-        <ReadyContent
-          data={data}
-          selected={selected}
-          setSelected={setSelected}
-          onlyPriority={onlyPriority}
-          setOnlyPriority={setOnlyPriority}
-          poolIds={poolIds}
-          setPoolIds={setPoolIds}
-          selectedCreator={selectedCreator}
-          shown={shown}
-          top={top}
-          togglePool={togglePool}
-          poolBudget={poolBudget}
-          poolMarkets={poolMarkets}
-          onDiagnosed={handleDiagnosed}
-          onboardingKey={onboardingKey}
-        />
+        <h1 className="font-display font-extrabold text-ink leading-[1.05] text-[clamp(2rem,5vw,3.4rem)]">
+          The fastest way to find <span className="text-gradient">creators who fit your brand</span>.
+        </h1>
+        <p className="mt-4 text-lg text-ink/70 max-w-2xl mx-auto">
+          Paste your company and product. LinkVerse matches it against thousands of creators — for audience fit,
+          local reach, and breakout potential — so you reach out to the right ten, not the loudest thousand.
+        </p>
+      </section>
+
+      <Onboarding key={onboardingKey} onDiagnosed={handleDiagnosed} />
+
+      {revealed && (
+        <div id="results" className="animate-reveal">
+          {error ? (
+            <div className="px-6 py-20 text-center">
+              <p className="text-muted">
+                Couldn't load the dataset ({error}). Run <code className="num">npm run build</code> so{" "}
+                <code className="num">linkverse.json</code> is served from <code className="num">public/</code>.
+              </p>
+            </div>
+          ) : !data ? (
+            <div className="px-6 py-20 text-center text-muted">Loading…</div>
+          ) : unmatched ? (
+            <LockedPreview mockData={data} variant="paywall" onBack={handleReset} />
+          ) : category.status === "onboarding" ? (
+            <LockedPreview mockData={data} variant="preparing" category={category} onBack={handleReset} />
+          ) : (
+            <ReadyResults
+              data={data}
+              selected={selected}
+              setSelected={setSelected}
+              onlyPriority={onlyPriority}
+              setOnlyPriority={setOnlyPriority}
+              poolIds={poolIds}
+              selectedCreator={selectedCreator}
+              shown={shown}
+              top={top}
+              togglePool={togglePool}
+              setPoolIds={setPoolIds}
+              poolBudget={poolBudget}
+              poolMarkets={poolMarkets}
+            />
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-function ReadyContent({
+// Proof section (stats + evidence + action note + pool bar + Kit drawer) —
+// only ever shown once a real diagnosis lands on the ready category, so the
+// hit-rate numbers are never presented next to a category they don't back.
+function ReadyResults({
   data,
   selected,
   setSelected,
@@ -162,8 +185,6 @@ function ReadyContent({
   togglePool,
   poolBudget,
   poolMarkets,
-  onDiagnosed,
-  onboardingKey,
 }: {
   data: Dataset;
   selected: string | null;
@@ -178,30 +199,14 @@ function ReadyContent({
   togglePool: (id: string) => void;
   poolBudget: { min: number; max: number; unpriced: number };
   poolMarkets: [string, number][];
-  onDiagnosed: (id: CategoryId | null) => void;
-  onboardingKey: number;
 }) {
   const f = data.meta.finding;
 
   return (
     <>
-      {/* 1 · FINDING */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 pb-14 animate-rise">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted font-semibold mb-5">
-          Your product in. The right creators out.
-        </div>
-        <h1 className="font-display font-extrabold text-ink leading-[1.05] text-[clamp(2rem,5vw,3.4rem)] max-w-3xl">
-          The fastest way to find <span className="text-gradient">creators who fit your brand</span>.
-        </h1>
-        <p className="mt-2 text-xs text-muted">
-          Demo tuned for Insta360 — full product-input matching coming next.
-        </p>
-        <p className="mt-4 text-lg text-ink/70 max-w-2xl">
-          Paste your company and product. LinkVerse matches it against thousands of creators — for audience fit,
-          local reach, and breakout potential — so you reach out to the right ten, not the loudest thousand.
-        </p>
-
-        <div className="mt-8 text-[11px] uppercase tracking-wider text-muted font-semibold">
+      {/* 1 · PROOF */}
+      <section className="max-w-6xl mx-auto px-6 pt-4 pb-14">
+        <div className="text-[11px] uppercase tracking-wider text-muted font-semibold">
           Measured on held-out data — {f.lift}× better than follower-count ranking ({f.model_pct}% vs{" "}
           {f.baseline_pct}%).
         </div>
@@ -227,8 +232,6 @@ function ReadyContent({
           ready outreach kit for each one.
         </p>
       </section>
-
-      <Onboarding key={onboardingKey} onDiagnosed={onDiagnosed} />
 
       {/* 2 · EVIDENCE (scope + top picks) */}
       <section id="evidence" className="border-t border-line bg-surface">
