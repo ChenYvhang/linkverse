@@ -45,10 +45,13 @@ function buildBrief(creator: Creator, script: Script | undefined) {
     .join("\n");
 }
 
-// Real mailto: link, not a mocked send — we don't have creators' actual
-// emails in this dataset, so this hands off to the user's own mail app with
-// a drafted message rather than faking a "sent" state.
-function buildMailto(creator: Creator, script: Script | undefined) {
+// Opens a real Gmail compose window (not a mocked send) — we don't have
+// creators' actual emails in this dataset, so this hands off to the user's
+// own Gmail with a drafted message rather than faking a "sent" state.
+// Uses Gmail's web compose URL instead of mailto: so it opens Gmail
+// specifically, rather than whatever the OS/browser's default mail handler
+// happens to be (e.g. Outlook).
+function buildGmailComposeUrl(creator: Creator, script: Script | undefined) {
   const subject = `Collab opportunity — ${creator.product}`;
   const lines = [
     `Hi ${creator.title},`,
@@ -62,8 +65,9 @@ function buildMailto(creator: Creator, script: Script | undefined) {
     lines.push("", `We're working with a budget band of $${creator.price.min}–$${creator.price.max} for this collab.`);
   }
   lines.push("", "Let us know if you're interested!", "", "— sent via LinkVerse");
-  const body = lines.join("\r\n");
-  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const body = lines.join("\n");
+  const params = new URLSearchParams({ view: "cm", fs: "1", su: subject, body });
+  return `https://mail.google.com/mail/?${params.toString()}`;
 }
 
 export default function Kit({ creator, onClose }: { creator: Creator; onClose: () => void }) {
@@ -110,14 +114,16 @@ export default function Kit({ creator, onClose }: { creator: Creator; onClose: (
       <div className="px-6 py-5 space-y-6">
         <div>
           <a
-            href={buildMailto(creator, script)}
+            href={buildGmailComposeUrl(creator, script)}
+            target="_blank"
+            rel="noreferrer"
             className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-accent text-white
               text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             ✉ Contact {creator.title} →
           </a>
           <p className="text-[11px] text-muted mt-1.5 text-center leading-snug">
-            Opens your email app with a drafted message — look up their contact (e.g. the channel's About
+            Opens a Gmail draft with the message below — look up their contact (e.g. the channel's About
             page) since we don't have it on file.
           </p>
         </div>
