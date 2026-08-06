@@ -50,6 +50,8 @@ export default function LinkVerse() {
     setCategoryId(READY_CATEGORY.id);
     setUnmatched(false);
     setRevealed(false);
+    setSelected(null);
+    setPoolIds(new Set());
     setOnboardingKey((k) => k + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -153,24 +155,58 @@ export default function LinkVerse() {
               onlyPriority={onlyPriority}
               setOnlyPriority={setOnlyPriority}
               poolIds={poolIds}
-              selectedCreator={selectedCreator}
               shown={shown}
               top={top}
               togglePool={togglePool}
-              setPoolIds={setPoolIds}
-              poolBudget={poolBudget}
-              poolMarkets={poolMarkets}
             />
           )}
         </div>
+      )}
+
+      {/* Rendered outside #results on purpose: that wrapper's reveal
+          animation leaves a lingering (identity) transform on itself, which
+          would otherwise become the containing block for these fixed-
+          position overlays and anchor them to the stats section instead of
+          the real viewport. */}
+      {revealed && !error && data && !unmatched && category.status !== "onboarding" && (
+        <>
+          {poolIds.size > 0 && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-surface
+              border border-line rounded-full pl-5 pr-3 py-2.5 shadow-[0_0_0_1px_rgba(31,53,224,0.08),0_12px_32px_-12px_rgba(31,53,224,0.35)] animate-slide">
+              <span className="text-sm text-ink">
+                <span className="num font-semibold">{poolIds.size}</span> selected
+              </span>
+              <span className="w-px h-4 bg-line" />
+              <span className="num text-sm text-ink">
+                {poolBudget.min || poolBudget.max
+                  ? `$${poolBudget.min.toLocaleString()}–$${poolBudget.max.toLocaleString()}`
+                  : "no budget data"}
+              </span>
+              {poolBudget.unpriced > 0 && (
+                <span className="text-xs text-muted">(+{poolBudget.unpriced} unpriced)</span>
+              )}
+              {poolMarkets.length > 0 && (
+                <span className="hidden md:inline text-xs text-muted">
+                  {poolMarkets.map(([m, n]) => `${m.replace(/_/g, " ")} ${n}`).join(" · ")}
+                </span>
+              )}
+              <button onClick={() => setPoolIds(new Set())} aria-label="Clear selection"
+                className="text-muted hover:text-ink text-lg leading-none px-1">×</button>
+            </div>
+          )}
+
+          {selectedCreator && <Kit creator={selectedCreator} onClose={() => setSelected(null)} />}
+        </>
       )}
     </div>
   );
 }
 
-// Proof section (stats + evidence + action note + pool bar + Kit drawer) —
-// only ever shown once a real diagnosis lands on the ready category, so the
-// hit-rate numbers are never presented next to a category they don't back.
+// Proof section (stats + evidence + action note) — only ever shown once a
+// real diagnosis lands on the ready category, so the hit-rate numbers are
+// never presented next to a category they don't back. The floating pool bar
+// and Kit drawer render as top-level siblings in LinkVerse instead of here —
+// see the comment at their call site for why.
 function ReadyResults({
   data,
   selected,
@@ -178,13 +214,9 @@ function ReadyResults({
   onlyPriority,
   setOnlyPriority,
   poolIds,
-  setPoolIds,
-  selectedCreator,
   shown,
   top,
   togglePool,
-  poolBudget,
-  poolMarkets,
 }: {
   data: Dataset;
   selected: string | null;
@@ -192,13 +224,9 @@ function ReadyResults({
   onlyPriority: boolean;
   setOnlyPriority: (v: boolean) => void;
   poolIds: Set<string>;
-  setPoolIds: (v: Set<string>) => void;
-  selectedCreator: Creator | null;
   shown: Creator[];
   top: Creator[];
   togglePool: (id: string) => void;
-  poolBudget: { min: number; max: number; unpriced: number };
-  poolMarkets: [string, number][];
 }) {
   const f = data.meta.finding;
 
@@ -255,33 +283,6 @@ function ReadyResults({
           ready-to-send script. Pick one from the list above to see it.
         </p>
       </section>
-
-      {poolIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-surface
-          border border-line rounded-full pl-5 pr-3 py-2.5 shadow-[0_0_0_1px_rgba(31,53,224,0.08),0_12px_32px_-12px_rgba(31,53,224,0.35)] animate-slide">
-          <span className="text-sm text-ink">
-            <span className="num font-semibold">{poolIds.size}</span> selected
-          </span>
-          <span className="w-px h-4 bg-line" />
-          <span className="num text-sm text-ink">
-            {poolBudget.min || poolBudget.max
-              ? `$${poolBudget.min.toLocaleString()}–$${poolBudget.max.toLocaleString()}`
-              : "no budget data"}
-          </span>
-          {poolBudget.unpriced > 0 && (
-            <span className="text-xs text-muted">(+{poolBudget.unpriced} unpriced)</span>
-          )}
-          {poolMarkets.length > 0 && (
-            <span className="hidden md:inline text-xs text-muted">
-              {poolMarkets.map(([m, n]) => `${m.replace(/_/g, " ")} ${n}`).join(" · ")}
-            </span>
-          )}
-          <button onClick={() => setPoolIds(new Set())} aria-label="Clear selection"
-            className="text-muted hover:text-ink text-lg leading-none px-1">×</button>
-        </div>
-      )}
-
-      {selectedCreator && <Kit creator={selectedCreator} onClose={() => setSelected(null)} />}
     </>
   );
 }
