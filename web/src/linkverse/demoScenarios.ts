@@ -13,8 +13,8 @@ export type DemoScenario = {
   // questions[0] is the shared opening line; questions[i] (i>0) is the
   // acknowledgment of answers[i-1] plus the next question, already combined
   // into one message the way a live response would be.
-  questions: [string, string, string, string, string];
-  answers: [string, string, string, string, string];
+  questions: [string, string, string];
+  answers: [string, string, string];
   summary: string;
   confidence: number;
 };
@@ -26,15 +26,11 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     questions: [
       "What does your company do? Tell us a bit about it.",
       "Capturing high-octane extreme sports on camera sounds awesome! Which specific product are you promoting right now?",
-      "The Insta360 X5 sounds like a serious piece of kit for capturing all those angles! Which country or region are you focusing this campaign on?",
-      "North America and Western Europe are fantastic markets for outdoor and action gear! Who's your target audience for the X5?",
-      "Active 18–35 year old skiers, surfers, and mountain bikers make total sense for a camera built for extreme angles! What kind of creator style or vibe are you hoping to partner with?",
+      "The Insta360 X5 sounds like a serious piece of kit for capturing all those angles! What kind of creator style or vibe are you hoping to partner with?",
     ],
     answers: [
       "We make Insta360 action cameras for extreme sports.",
       "The Insta360 X5, our new 360° waterproof action camera.",
-      "North America and Western Europe.",
-      "Skiers, surfers, and mountain bikers, 18–35.",
       "High-energy, authentic outdoor athletes who film their own stunts — not overly polished.",
     ],
     summary:
@@ -47,15 +43,11 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     questions: [
       "What does your company do? Tell us a bit about it.",
       "Neutrogena's a name most people already trust for skincare! Which specific product are you promoting right now?",
-      "Ultra Sheer Dry-Touch is such a popular everyday pick! Which country or region are you focusing this campaign on?",
-      "Great markets for daily sun protection! Who's your target audience for this campaign?",
-      "That lightweight, no-white-cast appeal really resonates with that audience! What kind of creator style or vibe are you hoping to work with?",
+      "Ultra Sheer Dry-Touch is such a popular everyday pick! What kind of creator style or vibe are you hoping to work with?",
     ],
     answers: [
       "We're Neutrogena, a global skincare brand known for dermatologist-recommended products.",
       "Our Ultra Sheer Dry-Touch Sunscreen, SPF 55.",
-      "United States and Canada.",
-      "Women in their 20s and 30s who want lightweight, non-greasy sun protection for daily use.",
       "Relatable skincare enthusiasts who show honest, everyday routines — not overly glamorous.",
     ],
     summary:
@@ -68,15 +60,11 @@ export const DEMO_SCENARIOS: DemoScenario[] = [
     questions: [
       "What does your company do? Tell us a bit about it.",
       "Optimum Nutrition is basically iconic in the fitness supplement world! Which specific product are you promoting right now?",
-      "Gold Standard Whey is a staple for so many lifters! Which country or region are you targeting?",
-      "Solid market for supplements! Who's your target audience for this campaign?",
-      "Makes total sense for a whey protein positioned around recovery and gains! What kind of creator style or vibe are you hoping to work with?",
+      "Gold Standard Whey is a staple for so many lifters! What kind of creator style or vibe are you hoping to work with?",
     ],
     answers: [
       "We're Optimum Nutrition, one of the world's leading sports nutrition brands.",
       "Gold Standard 100% Whey Protein Powder, Double Rich Chocolate flavor.",
-      "United States.",
-      "Gym-goers and bodybuilders aged 20-35 focused on muscle recovery and growth.",
       "Serious lifters who post real training footage and progress updates — no fluff, just results.",
     ],
     summary:

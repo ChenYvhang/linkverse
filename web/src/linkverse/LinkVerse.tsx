@@ -229,20 +229,30 @@ function ReadyResults({
   togglePool: (id: string) => void;
 }) {
   const f = data.meta.finding;
+  const [statsOpen, setStatsOpen] = useState(false);
 
   return (
     <>
       {/* 1 · PROOF */}
       <section className="max-w-6xl mx-auto px-6 pt-4 pb-14">
-        <div className="text-[11px] uppercase tracking-wider text-muted font-semibold">
+        <button
+          onClick={() => setStatsOpen((o) => !o)}
+          aria-expanded={statsOpen}
+          className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted font-semibold hover:text-ink transition-colors"
+        >
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-line text-xs leading-none shrink-0">
+            {statsOpen ? "−" : "+"}
+          </span>
           Measured on held-out data — {f.lift}× better than follower-count ranking ({f.model_pct}% vs{" "}
           {f.baseline_pct}%).
-        </div>
-        <div className="mt-3 flex flex-wrap items-end gap-x-10 gap-y-4">
-          <Stat big value={`${f.model_pct}%`} label="LinkVerse hit rate" accent />
-          <Stat big value={`${f.baseline_pct}%`} label="Follower-count baseline" />
-          <Stat big value={`${f.lift}×`} label="Improvement" accent />
-        </div>
+        </button>
+        {statsOpen && (
+          <div className="mt-3 flex flex-wrap items-end gap-x-10 gap-y-4">
+            <Stat big value={`${f.model_pct}%`} label="LinkVerse hit rate" accent />
+            <Stat big value={`${f.baseline_pct}%`} label="Follower-count baseline" />
+            <Stat big value={`${f.lift}×`} label="Improvement" accent />
+          </div>
+        )}
 
         <div className="mt-10 grid sm:grid-cols-3 gap-6 max-w-3xl">
           <Benefit title="Skip the manual search" body="Days of scrolling channels, down to one ranked list." />

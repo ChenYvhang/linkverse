@@ -14,8 +14,6 @@ type ApiResponse =
       company: string;
       product: string;
       category: string | null;
-      country: string;
-      audience: string;
       creatorType?: string;
       confidence: number;
     };
