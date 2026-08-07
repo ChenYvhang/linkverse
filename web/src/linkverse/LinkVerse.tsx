@@ -247,28 +247,30 @@ function ReadyResults({
           {f.baseline_pct}%).
         </button>
         {statsOpen && (
-          <div className="mt-3 flex flex-wrap items-end gap-x-10 gap-y-4">
-            <Stat big value={`${f.model_pct}%`} label="LinkVerse hit rate" accent />
-            <Stat big value={`${f.baseline_pct}%`} label="Follower-count baseline" />
-            <Stat big value={`${f.lift}×`} label="Improvement" accent />
-          </div>
+          <>
+            <div className="mt-3 flex flex-wrap items-end gap-x-10 gap-y-4">
+              <Stat big value={`${f.model_pct}%`} label="LinkVerse hit rate" accent />
+              <Stat big value={`${f.baseline_pct}%`} label="Follower-count baseline" />
+              <Stat big value={`${f.lift}×`} label="Improvement" accent />
+            </div>
+
+            <div className="mt-10 grid sm:grid-cols-3 gap-6 max-w-3xl">
+              <Benefit title="Skip the manual search" body="Days of scrolling channels, down to one ranked list." />
+              <Benefit title="Localized for your market" body="Creators who already have reach where you're launching." />
+              <Benefit
+                title="Sign them before they're expensive"
+                body="Potential score flags who's about to break out, not who already has."
+              />
+            </div>
+
+            <p className="mt-8 text-sm text-muted max-w-2xl leading-relaxed">
+              LinkVerse scores {data.meta.channel_count.toLocaleString()} creators on two axes —{" "}
+              <span className="text-ink font-medium">Potential</span> (are they about to break out?) and{" "}
+              <span className="text-ink font-medium">Resonance</span> (do they fit your product?) — then hands you a
+              ready outreach kit for each one.
+            </p>
+          </>
         )}
-
-        <div className="mt-10 grid sm:grid-cols-3 gap-6 max-w-3xl">
-          <Benefit title="Skip the manual search" body="Days of scrolling channels, down to one ranked list." />
-          <Benefit title="Localized for your market" body="Creators who already have reach where you're launching." />
-          <Benefit
-            title="Sign them before they're expensive"
-            body="Potential score flags who's about to break out, not who already has."
-          />
-        </div>
-
-        <p className="mt-8 text-sm text-muted max-w-2xl leading-relaxed">
-          LinkVerse scores {data.meta.channel_count.toLocaleString()} creators on two axes —{" "}
-          <span className="text-ink font-medium">Potential</span> (are they about to break out?) and{" "}
-          <span className="text-ink font-medium">Resonance</span> (do they fit your product?) — then hands you a
-          ready outreach kit for each one.
-        </p>
       </section>
 
       {/* 2 · EVIDENCE (scope + top picks) */}
