@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import type { Creator } from "./useData";
+import AuthPanel from "./AuthPanel";
 import {
   MIN_FOR_RATES,
   OUTCOME_STAGES,
@@ -37,11 +39,15 @@ export default function Track({
   tracked,
   setTracked,
   onSelect,
+  user,
+  syncing,
 }: {
   creators: Creator[];
   tracked: TrackedMap;
   setTracked: (m: TrackedMap) => void;
   onSelect: (id: string) => void;
+  user: User | null;
+  syncing: boolean;
 }) {
   const [stageFilter, setStageFilter] = useState<OutcomeStage | "all">("all");
 
@@ -68,6 +74,8 @@ export default function Track({
         grew — it cannot know whether contacting them was worth it. This is the only place that
         answer can come from.
       </p>
+
+      <AuthPanel user={user} syncing={syncing} />
 
       {total === 0 ? (
         <div className="rounded-xl border border-dashed border-line px-6 py-12 text-center">
@@ -176,11 +184,10 @@ export default function Track({
           </ul>
         </>
       )}
-
-      <p className="text-[11px] text-muted mt-4">
-        Stored in this browser only. Nothing is sent anywhere, and it will not follow you to another
-        device — a shared pipeline needs accounts and a backend, which this does not have yet.
-      </p>
+      {/* Storage state is stated once, at the top, by AuthPanel — signed out
+          it says local-only, signed in it says which account is syncing. A
+          second note down here would just repeat or, once signed in, be
+          stale. */}
     </section>
   );
 }

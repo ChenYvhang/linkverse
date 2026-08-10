@@ -1,16 +1,24 @@
-// Watchlist + outreach outcomes, persisted locally.
+// Watchlist + outreach outcomes.
 //
-// This is the feedback layer's data. Right now it only survives a reload, but
-// it is the shape the model would eventually learn from: which creators a brand
-// actually pursued, and what came of it. The pipeline's potential score is
-// trained on "did this channel accelerate" — historical, observable, and
-// nothing to do with whether contacting them was a good idea. Only outcomes
-// recorded here can answer that.
+// This is the feedback layer's data. It is the shape the model would
+// eventually learn from: which creators a brand actually pursued, and what
+// came of it. The pipeline's potential score is trained on "did this channel
+// accelerate" — historical, observable, and nothing to do with whether
+// contacting them was a good idea. Only outcomes recorded here can answer
+// that.
 //
-// Deliberately local for now, and labelled that way in the UI. A shared,
-// multi-user store needs accounts and a backend; claiming to "capture results"
-// while writing to one browser would be the kind of overstatement this project
-// avoids elsewhere.
+// Two backends, same TrackedMap shape either way:
+//   - Signed out, or Supabase not configured: localStorage only. Survives a
+//     reload, not a change of device.
+//   - Signed in: Supabase, scoped by Row Level Security (supabase/schema.sql)
+//     so one account can never read or write another's rows. localStorage is
+//     still written as an offline cache, not as the source of truth.
+//
+// useTrackedSync below is what a component actually calls; the functions in
+// this file are its building blocks (and are what Track.tsx's pure local
+// tests would exercise, if this project had any yet).
+import { useCallback, useEffect, useRef, useState } from "react";
+import { supabase } from "./supabaseClient";
 
 export const OUTCOME_STAGES = [
   { id: "tracked", label: "Tracked", hint: "On the watchlist, not contacted yet" },
@@ -107,4 +115,144 @@ export function outcomeRates(map: TrackedMap): { contacted: number; replyRate: n
     replyRate: Math.round((replied / contacted) * 100),
     signRate: Math.round((signed / contacted) * 100),
   };
+}
+
+// --- Supabase-backed storage -------------------------------------------
+
+type TrackedRow = { creator_id: string; stage: OutcomeStage; note: string; updated_at: string };
+
+// No user_id filter on select/delete below: Row Level Security already scopes
+// every query to auth.uid(), so a client-side filter would be redundant at
+// best and misleading at worst — it would read as "this is what keeps rows
+// isolated" when the database is what actually does that.
+async function fetchCloudTracked(categoryId: string): Promise<TrackedMap> {
+  if (!supabase) return {};
+  const { data, error } = await supabase
+    .from("tracked_creators")
+    .select("creator_id, stage, note, updated_at")
+    .eq("category", categoryId);
+  if (error) {
+    console.error("tracked_creators fetch failed:", error.message);
+    return {};
+  }
+  const out: TrackedMap = {};
+  for (const row of (data ?? []) as TrackedRow[]) {
+    out[row.creator_id] = { stage: row.stage, note: row.note, updatedAt: row.updated_at };
+  }
+  return out;
+}
+
+async function upsertCloudEntry(userId: string, categoryId: string, creatorId: string, entry: TrackedEntry) {
+  if (!supabase) return;
+  const { error } = await supabase.from("tracked_creators").upsert({
+    user_id: userId,
+    category: categoryId,
+    creator_id: creatorId,
+    stage: entry.stage,
+    note: entry.note,
+    // updated_at is deliberately omitted: a database trigger sets it, so a
+    // stale client clock can never misreport when a row actually changed.
+  });
+  if (error) console.error("tracked_creators upsert failed:", error.message);
+}
+
+async function deleteCloudEntry(categoryId: string, creatorId: string) {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("tracked_creators")
+    .delete()
+    .eq("category", categoryId)
+    .eq("creator_id", creatorId);
+  if (error) console.error("tracked_creators delete failed:", error.message);
+}
+
+function diffEntries(prev: TrackedMap, next: TrackedMap): { changed: [string, TrackedEntry][]; removed: string[] } {
+  const changed: [string, TrackedEntry][] = [];
+  for (const [id, entry] of Object.entries(next)) {
+    if (prev[id] !== entry) changed.push([id, entry]);
+  }
+  const removed = Object.keys(prev).filter((id) => !(id in next));
+  return { changed, removed };
+}
+
+/**
+ * Owns tracked-creators state for one category, backed by Supabase when
+ * signed in and localStorage otherwise. Call once per category in view.
+ *
+ * On sign-in, any entries that exist only locally (tracked before an account
+ * existed, or added in another anonymous session) are uploaded once rather
+ * than discarded — losing a shortlist the moment someone creates an account
+ * would defeat the point of adding one. For ids present in both, the cloud
+ * version wins, on the assumption that a returning, already-signed-in user's
+ * synced history is more likely to be current than local state on a device
+ * that has not talked to the cloud yet.
+ */
+export function useTrackedSync(categoryId: string, userId: string | null) {
+  const [tracked, setTrackedState] = useState<TrackedMap>(() => loadTracked(categoryId));
+  const [syncing, setSyncing] = useState(false);
+  // Previous userId, to detect the sign-in transition (not just re-renders).
+  const prevUserId = useRef<string | null>(null);
+  const prevTracked = useRef<TrackedMap>(tracked);
+
+  const commit = useCallback(
+    (next: TrackedMap) => {
+      const prev = prevTracked.current;
+      prevTracked.current = next;
+      setTrackedState(next);
+      saveTracked(categoryId, next); // offline cache either way
+      if (!userId) return;
+      const { changed, removed } = diffEntries(prev, next);
+      for (const [id, entry] of changed) void upsertCloudEntry(userId, categoryId, id, entry);
+      for (const id of removed) void deleteCloudEntry(categoryId, id);
+    },
+    [categoryId, userId],
+  );
+
+  // Category switch: reload from scratch (local immediately, cloud below).
+  useEffect(() => {
+    const local = loadTracked(categoryId);
+    prevTracked.current = local;
+    setTrackedState(local);
+  }, [categoryId]);
+
+  // Load from, or merge into, the cloud whenever we have both a user and a
+  // category to load for.
+  useEffect(() => {
+    if (!userId || !supabase) {
+      prevUserId.current = userId;
+      return;
+    }
+    let cancelled = false;
+    setSyncing(true);
+    const justSignedIn = prevUserId.current === null;
+    prevUserId.current = userId;
+
+    (async () => {
+      const cloud = await fetchCloudTracked(categoryId);
+      if (cancelled) return;
+
+      if (justSignedIn) {
+        const local = loadTracked(categoryId);
+        const localOnly = Object.entries(local).filter(([id]) => !(id in cloud));
+        for (const [id, entry] of localOnly) await upsertCloudEntry(userId, categoryId, id, entry);
+        const merged = { ...cloud, ...Object.fromEntries(localOnly) };
+        if (!cancelled) {
+          prevTracked.current = merged;
+          setTrackedState(merged);
+          saveTracked(categoryId, merged);
+        }
+      } else {
+        prevTracked.current = cloud;
+        setTrackedState(cloud);
+        saveTracked(categoryId, cloud);
+      }
+      if (!cancelled) setSyncing(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, categoryId]);
+
+  return { tracked, setTracked: commit, syncing };
 }

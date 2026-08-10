@@ -4,7 +4,11 @@
 > influencer marketing (demo scenario: Insta360), and hand back a ready-to-send outreach kit for
 > each one.
 
-**Live**: https://linkverse-khaki.vercel.app
+**Live**: https://web-flame-two-76.vercel.app (full app, including the onboarding chat's real matching — that
+needs the Vercel serverless function, so it's not on GitHub Pages)
+**Also on GitHub Pages**: https://chenyvhang.github.io/linkverse/ (static host — chat falls back to manual
+category selection, and the tracking pipeline works but is local-only there since Supabase env vars aren't
+set for that build)
 
 A GitHub Pages workflow also exists (`.github/workflows/deploy-web.yml`) but hasn't been verified
 with this repo. Its base path is no longer hardcoded: the workflow passes the repo name to the build
@@ -48,7 +52,7 @@ black-box module that isn't backed by real data.
 | **Data** | Stage1 collection (YouTube Data API v3) + Stage2 feature engineering | Fully real: real API collection, age bias verified removed (bucket drift slope ≈0.000, under the 0.05 threshold) |
 | **Matching** | Stage3 multimodal vision analysis (GLM-4.6V-Flash) + Stage4 dual-head GBDT potential score P + cosine resonance score R | Real, with an accepted tradeoff: no "pretrained black-box neural matcher" — at demo scale there's no real supervised product-fit label to train one on, so it uses an interpretable, backtestable GBDT + cosine similarity instead |
 | **Fission** | Stage5 decision cards (localized creative variants) + Stage5b full scripts (Top-20) + Stage5c/5d English translation | Real: everything is generated/translated by DeepSeek, not template boilerplate |
-| **Feedback** | Real permutation importance / cosine per-dimension contributions, surfaced per creator in the outreach kit | `partially_live`: model attribution is real and visible. Outcome capture is **not** currently in the product — it lived in the original 4-page app (localStorage) and went away when that app was deleted; it has not been rebuilt in the 3-screen flow. Ad-spend/conversion data and ROI attribution were never wired up: there's no real conversion data at demo scale, so no fabricated causal dashboard |
+| **Feedback** | Real permutation importance / cosine per-dimension contributions in the outreach kit, plus a "Your pipeline" screen where a creator moves through tracked → contacted → replied → signed/declined with a note. Local-only (`localStorage`) unless the deployment has Supabase configured, in which case it syncs to an account, isolated per user by Postgres Row Level Security — see `supabase/README.md` | `live_with_caveat`: outcome capture is real and, with Supabase, durable and multi-device. It is not yet fed back into training the potential score — the model still learns "did this channel accelerate," not "did contacting them work." Ad-spend/conversion data and ROI attribution still aren't wired up: no real conversion data at demo scale, so no fabricated causal dashboard |
 
 ---
 

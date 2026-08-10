@@ -6,7 +6,8 @@ import Onboarding from "./Onboarding";
 import { CATEGORIES, type CategoryDef, type CategoryId } from "./categories";
 import type { ProductMatch } from "./diagnose";
 import Track from "./Track";
-import { loadTracked, saveTracked, setStage, type TrackedMap } from "./trackStore";
+import { setStage, useTrackedSync } from "./trackStore";
+import { useAuth } from "./auth";
 
 const fmtSubs = (n: number) =>
   n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`;
@@ -182,22 +183,19 @@ export default function LinkVerse() {
   // Non-null once the chat has placed the visitor's own product on this
   // category's axes; the ranking below is then theirs, not the demo's.
   const [match, setMatch] = useState<ProductMatch | null>(null);
-  // The feedback layer's state. Same category-keyed localStorage approach as
-  // the selection pool, for the same reason: losing it to a refresh would make
-  // the one place the product records real outcomes untrustworthy.
-  const [tracked, setTrackedState] = useState<TrackedMap>(() => loadTracked(READY_CATEGORY.id));
-
-  const setTracked = (m: TrackedMap) => {
-    setTrackedState(m);
-    saveTracked(categoryId, m);
-  };
+  // The feedback layer's state: local by default, synced to Supabase once
+  // signed in (see trackStore.ts's useTrackedSync for the merge behaviour on
+  // sign-in). Losing this to a refresh would make the one place the product
+  // records real outcomes untrustworthy, which is the whole reason accounts
+  // exist here at all — nothing else in the app needs one.
+  const { user } = useAuth();
+  const { tracked, setTracked, syncing } = useTrackedSync(categoryId, user?.id ?? null);
   const trackCreator = (id: string) => setTracked(setStage(tracked, id, tracked[id]?.stage ?? "tracked"));
 
   useEffect(() => {
     setSelected(null);
     setFilters(NO_FILTERS);
     setPoolIds(loadPool(categoryId));
-    setTrackedState(loadTracked(categoryId));
   }, [categoryId]);
 
   useEffect(() => {
@@ -343,6 +341,8 @@ export default function LinkVerse() {
           tracked={tracked}
           setTracked={setTracked}
           onSelect={(id) => setSelected(id)}
+          user={user}
+          syncing={syncing}
         />
       )}
 
