@@ -21,6 +21,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from pipeline.common import config
 from pipeline.common.http import post_json
 from pipeline.common.logging import get_logger
 from pipeline.common.variants import normalize_variant
@@ -28,9 +29,9 @@ from pipeline.common.variants import normalize_variant
 logger = get_logger("translate_variants")
 
 ROOT = Path(__file__).resolve().parent
-DECISIONS_CACHE_DIR = ROOT / "cache" / "decisions"
-SCRIPTS_CACHE_DIR = ROOT / "cache" / "scripts"
-TRANSLATIONS_CACHE_DIR = ROOT / "cache" / "variant_translations"
+DECISIONS_CACHE_ROOT = ROOT / "cache" / "decisions"
+SCRIPTS_CACHE_ROOT = ROOT / "cache" / "scripts"
+TRANSLATIONS_CACHE_ROOT = ROOT / "cache" / "variant_translations"
 FAILURES_PATH = ROOT / "artifacts" / "translate_variants_failures.json"
 
 MODEL_NAME = "deepseek-v4-flash"
@@ -48,25 +49,26 @@ def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def has_full_scripts(channel_id: str, product_id: str) -> bool:
+def has_full_scripts(channel_id: str, product_id: str, category: str) -> bool:
     """Mirrors build.py's load_scripts_for gating: >=4 cached files means the
     Top-20 full-script stage already covered this (channel, product) pair, so
     it has real bilingual scripts and doesn't need a variant translation."""
-    if not SCRIPTS_CACHE_DIR.exists():
+    scripts_dir = SCRIPTS_CACHE_ROOT / category
+    if not scripts_dir.exists():
         return False
-    matches = list(SCRIPTS_CACHE_DIR.glob(f"{channel_id}_{product_id}_*.json"))
+    matches = list(scripts_dir.glob(f"{channel_id}_{product_id}_*.json"))
     return len(matches) >= 4
 
 
-def load_targets(limit: int | None) -> list[dict]:
+def load_targets(limit: int | None, category: str) -> list[dict]:
     targets = []
-    for p in sorted(DECISIONS_CACHE_DIR.glob("*.json")):
+    for p in sorted((DECISIONS_CACHE_ROOT / category).glob("*.json")):
         channel_id = p.stem
         decision = _load_json(p)
         variants = [normalize_variant(v) for v in (decision.get("creative_variants") or [])]
         if not variants:
             continue
-        if has_full_scripts(channel_id, decision["recommended_product"]):
+        if has_full_scripts(channel_id, decision["recommended_product"], category):
             continue
         targets.append({"channel_id": channel_id, "variants": variants})
     if limit:
@@ -144,37 +146,39 @@ def call_deepseek(api_key: str, messages: list[dict], source_variants: list[dict
     raise last_exc
 
 
-def process_one(api_key: str, target: dict) -> str:
+def process_one(api_key: str, target: dict, category: str) -> str:
     channel_id = target["channel_id"]
     messages = build_prompt(target["variants"])
     llm_out = call_deepseek(api_key, messages, source_variants=target["variants"])
 
-    TRANSLATIONS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache_path = TRANSLATIONS_CACHE_DIR / f"{channel_id}.json"
+    cache_dir = TRANSLATIONS_CACHE_ROOT / category
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / f"{channel_id}.json"
     payload = {"creative_variants_en": llm_out["creative_variants_en"], "model": MODEL_NAME}
     cache_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return channel_id
 
 
-def run(limit: int | None):
+def run(limit: int | None, category: str | None = None):
     load_dotenv(ROOT.parent / ".env")
+    category = config.resolve(category)
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
         raise SystemExit("DEEPSEEK_API_KEY not set in .env")
 
-    targets = load_targets(limit)
+    targets = load_targets(limit, category)
     logger.info("%d decisions need creative_variants translation (limit=%s)", len(targets), limit)
 
     todo = []
     for t in targets:
-        if (TRANSLATIONS_CACHE_DIR / f"{t['channel_id']}.json").exists():
+        if (TRANSLATIONS_CACHE_ROOT / category / f"{t['channel_id']}.json").exists():
             continue
         todo.append(t)
     logger.info("%d already cached, %d to process this run", len(targets) - len(todo), len(todo))
 
     succeeded, failures = 0, []
     with ThreadPoolExecutor(max_workers=CONCURRENCY) as pool:
-        futures = {pool.submit(process_one, api_key, t): t for t in todo}
+        futures = {pool.submit(process_one, api_key, t, category): t for t in todo}
         for fut in as_completed(futures):
             t = futures[fut]
             try:
@@ -198,5 +202,6 @@ def run(limit: int | None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="only process first N targets (validation)")
+    config.add_category_argument(parser)
     args = parser.parse_args()
-    print(json.dumps(run(args.limit), ensure_ascii=False, indent=2))
+    print(json.dumps(run(args.limit, args.category), ensure_ascii=False, indent=2))

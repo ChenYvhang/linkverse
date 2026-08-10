@@ -1,0 +1,118 @@
+# 运动补剂品类的八维语义空间。
+#
+# 与另外两个品类同样互不复用。补剂问的是「这个人的训练强度可不可信、他讲的
+# 科学依据站不站得住、他的受众处在哪个阶段」—— 与运动相机的拍摄需求、防晒的
+# 日照暴露都没有交集。
+#
+# 状态：维度定义已就位，尚未采集数据、尚未跑视觉分析，前端标记为 onboarding。
+#
+# 合规提醒：补剂在多数市场受健康声称监管，Stage5 生成话术时不得出现疗效承诺。
+# 这条约束应在接入真实客户前写进该品类的 decide 提示词。
+
+vision:
+  persona: "你是一名健身与运动营养内容分析专家，负责判断 YouTube 创作者的视频内容特征，用于运动补剂的达人营销匹配。"
+
+  fields:
+    - key: content_topics
+      kind: string_list
+      spec: '["字符串数组，如 力量训练/增肌饮食/马拉松备赛"]'
+    - key: training_discipline
+      kind: string
+      spec: '"字符串，如 力量举 / 健美 / 耐力跑 / 综合健身"'
+    - key: training_intensity
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: physique_visibility
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: science_rigor
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: nutrition_focus
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: audience_experience
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: authenticity
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: content_vector
+      kind: vector
+      spec: "[8个0.0-1.0的浮点数，严格按上面index顺序]"
+    - key: evidence
+      kind: string
+      spec: '"你的判断依据，必须具体引用你看到的缩略图内容与视频标题，不能泛泛而谈"'
+
+dimensions:
+  - key: training_intensity
+    index: 0
+    name: "训练强度"
+    description: "内容中展示的训练负荷与专业程度"
+    anchors:
+      0.0: "无训练内容，或仅轻度日常活动"
+      0.5: "常规健身房训练，中等强度"
+      1.0: "高强度专业训练（大重量力量举、竞技备赛、极限耐力）"
+
+  - key: physique_visibility
+    index: 1
+    name: "身体呈现度"
+    description: "内容中身体状态/体态变化的展示程度 —— 补剂效果的直观载体"
+    anchors:
+      0.0: "几乎不出镜或全程宽松衣物，无体态展示"
+      0.5: "训练服出镜，体态可见但非重点"
+      1.0: "大量体态特写、对比图、身体成分数据展示"
+
+  - key: science_rigor
+    index: 2
+    name: "科学严谨度"
+    description: "创作者引用研究、讲解机理的深入与克制程度 —— 高值适合成分党产品"
+    anchors:
+      0.0: "全凭个人感受，无任何依据，或充斥夸大宣称"
+      0.5: "会提到基本常识（蛋白质摄入量等），不引用来源"
+      1.0: "系统引用研究文献、讨论剂量与证据强度，对夸大宣称保持批判"
+
+  - key: nutrition_focus
+    index: 3
+    name: "营养话题占比"
+    description: "内容中饮食/补剂话题相对训练动作的比重"
+    anchors:
+      0.0: "只讲训练动作，从不涉及饮食"
+      0.5: "训练为主，偶尔谈饮食安排"
+      1.0: "饮食与补剂是核心选题（备餐、配方拆解、补剂测评）"
+
+  - key: audience_experience
+    index: 4
+    name: "受众训练阶段"
+    description: "受众的训练年限与专业度 —— 决定该推入门产品还是进阶产品"
+    anchors:
+      0.0: "受众以零基础新手为主"
+      0.5: "受众以有一定经验的健身爱好者为主"
+      1.0: "受众以高阶训练者/教练/运动员为主"
+
+  - key: authenticity
+    index: 5
+    name: "内容真实感"
+    description: "内容呈现为真实训练与真实使用体验而非广告腔的程度"
+    anchors:
+      0.0: "高度商业化，几乎全是口播广告与promo素材"
+      0.5: "商业内容与真实训练内容混杂"
+      1.0: "以真实训练日常与长期记录为主，商业植入克制"
+
+  - key: demo_friendliness
+    index: 6
+    name: "产品演示适配度"
+    description: "内容形式适合展示冲泡、口味、随身携带等使用过程的程度"
+    anchors:
+      0.0: "全程训练远景，无法容纳产品使用镜头"
+      0.5: "训练间隙有近景，可容纳简短演示"
+      1.0: "大量厨房/备餐/训练前后场景，天然适合产品演示"
+
+  - key: narrative_pace
+    index: 7
+    name: "叙事节奏"
+    description: "剪辑快慢与信息密度：数值越高节奏越快，越低越舒缓"
+    anchors:
+      0.0: "长镜头为主，节奏舒缓，少剪辑点"
+      0.5: "中等剪辑频率，叙事平稳推进"
+      1.0: "快节奏剪辑，镜头切换密集，信息量大"

@@ -1,9 +1,55 @@
-# 八维语义空间定义 —— Stage3 (vision.py) 输出的 content_vector 与
-# products.yaml 定义的单品卖点向量共享同一坐标系，顺序必须严格一致。
+# 运动相机品类的八维语义空间 —— Stage3 (vision.py) 输出的 content_vector 与
+# 同目录 products.yaml 定义的单品卖点向量共享同一坐标系，顺序必须严格一致。
 # 任何一方改动维度定义（新增/删除/重排）都必须同步更新另一方。
 #
 # 每个维度都写明 0.0 / 0.5 / 1.0 的评分锚点，直接喂给视觉模型的 prompt，
 # 减少不同频道之间打分的主观漂移。
+#
+# 这套维度只在本品类内成立：「防抖需求强度」「装备可见度」问的都是「这个人拍
+# 不拍极限运动、需不需要相机」。其他品类在各自目录下定义各自的维度，互不复用。
+#
+# vision 块定义视觉模型的人设与输出 schema —— prompt 与字段校验都由它生成，
+# vision.py 里不再硬编码任何品类专属字段名。
+vision:
+  persona: "你是一名体育/户外内容分析专家，负责判断 YouTube 创作者的视频内容特征，用于运动相机（Insta360）的达人营销匹配。"
+
+  # content_vector 之外的定性字段，顺序即 prompt 中 JSON schema 的书写顺序。
+  # kind 同时驱动 prompt 的类型说明与 _validate_vision_json 的校验：
+  #   string      非空字符串
+  #   string_list 字符串数组
+  #   unit_float  0.0-1.0 的浮点数
+  #   vector      content_vector 本身，长度必须等于维度数
+  fields:
+    - key: sport_types
+      kind: string_list
+      spec: '["字符串数组，如 滑雪/越野跑"]'
+    - key: camera_perspective
+      kind: string
+      spec: '"字符串，如 第一人称为主 / 第三人称为主 / 混合"'
+    - key: stabilization_demand
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: motion_complexity
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: scene_extremity
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: gear_visibility
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: narrative_pace
+      kind: string
+      spec: '"字符串，如 快节奏 / 中等节奏 / 慢节奏"'
+    - key: scene_diversity
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: content_vector
+      kind: vector
+      spec: "[8个0.0-1.0的浮点数，严格按上面index顺序]"
+    - key: evidence
+      kind: string
+      spec: '"你的判断依据，必须具体引用你看到的缩略图内容与视频标题，不能泛泛而谈"'
 
 dimensions:
   - key: perspective_ratio

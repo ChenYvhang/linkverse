@@ -34,6 +34,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
+from pipeline.common import config
 from pipeline.common.http import post_json
 from pipeline.common.logging import get_logger
 
@@ -42,9 +43,8 @@ logger = get_logger("decide")
 ROOT = Path(__file__).resolve().parent
 FEATURES_PATH = ROOT / "artifacts" / "features.json"
 SCORES_PATH = ROOT / "artifacts" / "scores.json"
-VISION_CACHE_DIR = ROOT / "cache" / "vision"
-PRODUCTS_PATH = ROOT / "config" / "products.yaml"
-DECISIONS_CACHE_DIR = ROOT / "cache" / "decisions"
+VISION_CACHE_ROOT = ROOT / "cache" / "vision"
+DECISIONS_CACHE_ROOT = ROOT / "cache" / "decisions"
 FAILURES_PATH = ROOT / "artifacts" / "decide_failures.json"
 
 MODEL_NAME = "deepseek-v4-flash"
@@ -57,29 +57,23 @@ MAX_RETRIES = 3
 USD_PER_1K_SUBS = 15
 PRICE_RANGE_SPREAD = 0.3  # +/-30% around the point estimate
 
-COMPETITOR_KEYWORDS = [
-    "gopro", "go pro", "dji", "osmo", "akaso", "sjcam", "insta360 competitor",
-    "ricoh theta", "kandao", "yi action", "campark", "dji osmo action",
-]
-
-
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def load_products() -> list[dict]:
-    with open(PRODUCTS_PATH, encoding="utf-8") as f:
-        return yaml.safe_load(f)["products"]
+def load_products(category: str | None = None) -> list[dict]:
+    return config.load_products(category)
 
 
-def detect_competitor_mentions(channel: dict) -> dict:
+def detect_competitor_mentions(channel: dict, category: str | None = None) -> dict:
+    keywords = config.load_competitor_keywords(category)
     haystack_parts = [channel.get("title", ""), channel.get("description", "")]
     for v in channel["videos"]:
         haystack_parts.append(v.get("title", ""))
         haystack_parts.append(v.get("description", "") or "")
         haystack_parts.extend(v.get("tags", []) or [])
     haystack = " ".join(haystack_parts).lower()
-    hits = sorted({kw for kw in COMPETITOR_KEYWORDS if kw in haystack})
+    hits = sorted({kw for kw in keywords if kw in haystack})
     return {"competitor_flag": len(hits) > 0, "flagged_keywords": hits}
 
 
@@ -207,16 +201,19 @@ def call_deepseek(api_key: str, messages: list[dict]) -> dict:
     raise last_exc
 
 
-def run(limit: int | None, top_k: int):
+def run(limit: int | None, top_k: int, category: str | None = None):
     load_dotenv(ROOT.parent / ".env")
+    category = config.resolve(category)
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
         raise SystemExit("DEEPSEEK_API_KEY not set in .env")
 
     features_data = _load_json(FEATURES_PATH)
     scores_data = _load_json(SCORES_PATH)
-    products = load_products()
+    products = load_products(category)
     products_by_id = {p["id"]: p for p in products}
+    vision_cache_dir = VISION_CACHE_ROOT / category
+    decisions_cache_dir = DECISIONS_CACHE_ROOT / category
 
     candidates = build_candidates(features_data, scores_data, products, top_k)
     logger.info("%d candidates ranked by sqrt(P*R) (top_k=%d, of which vision-analyzed candidates available)",
@@ -225,19 +222,19 @@ def run(limit: int | None, top_k: int):
     if limit:
         candidates = candidates[:limit]
 
-    DECISIONS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    decisions_cache_dir.mkdir(parents=True, exist_ok=True)
     succeeded, failures = 0, []
     for i, cand in enumerate(candidates, 1):
-        cache_path = DECISIONS_CACHE_DIR / f"{cand['channel_id']}.json"
+        cache_path = decisions_cache_dir / f"{cand['channel_id']}.json"
         if cache_path.exists():
             logger.info("[%d/%d] cached, skip: %s", i, len(candidates), cand["channel"]["title"])
             succeeded += 1
             continue
 
-        vision_path = VISION_CACHE_DIR / f"{cand['channel_id']}.json"
+        vision_path = vision_cache_dir / f"{cand['channel_id']}.json"
         vision = _load_json(vision_path)
         product = products_by_id[cand["recommended_product_id"]]
-        competitor_check = detect_competitor_mentions(cand["channel"])
+        competitor_check = detect_competitor_mentions(cand["channel"], category)
         price_range = estimate_price_range(cand["channel"].get("subscriber_count"))
 
         try:
@@ -278,5 +275,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="only process first N candidates (validation)")
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K, help="candidate pool size before --limit")
+    config.add_category_argument(parser)
     args = parser.parse_args()
-    print(json.dumps(run(args.limit, args.top_k), ensure_ascii=False, indent=2))
+    print(json.dumps(run(args.limit, args.top_k, args.category), ensure_ascii=False, indent=2))

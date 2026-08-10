@@ -1,0 +1,49 @@
+# 运动补剂品类种子关键词 —— Stage1 search.list 输入。
+#
+# 尚未执行采集：18 条 × 100 units = 1800 units，执行前确认当日配额余量。
+#
+# 覆盖三类达人：力量/增肌（蛋白、肌酸的核心受众）、耐力（电解质）、
+# 营养科普（科学严谨度高，适合成分导向的产品）。
+
+seeds:
+  # 力量 / 增肌
+  - keyword: "gym workout routine"
+    vertical: "力量训练"
+  - keyword: "bodybuilding vlog"
+    vertical: "健美"
+  - keyword: "powerlifting training"
+    vertical: "力量举"
+  - keyword: "增肌训练"
+    vertical: "力量训练"
+  - keyword: "健身房 训练计划"
+    vertical: "力量训练"
+  - keyword: "body transformation journey"
+    vertical: "健美"
+
+  # 营养 / 补剂科普
+  - keyword: "protein powder review"
+    vertical: "补剂测评"
+  - keyword: "creatine explained"
+    vertical: "营养科普"
+  - keyword: "sports nutrition science"
+    vertical: "营养科普"
+  - keyword: "补剂 测评"
+    vertical: "补剂测评"
+  - keyword: "运动营养"
+    vertical: "营养科普"
+  - keyword: "full day of eating bodybuilding"
+    vertical: "增肌饮食"
+
+  # 耐力
+  - keyword: "marathon training vlog"
+    vertical: "耐力跑"
+  - keyword: "triathlon training"
+    vertical: "铁人三项"
+  - keyword: "cycling endurance training"
+    vertical: "耐力骑行"
+  - keyword: "马拉松 备赛"
+    vertical: "耐力跑"
+  - keyword: "hyrox training"
+    vertical: "综合体能"
+  - keyword: "crossfit workout"
+    vertical: "综合体能"

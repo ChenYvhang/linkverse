@@ -1,0 +1,88 @@
+# 防晒品类单品卖点向量 —— 与同目录 dimensions.yaml 的八维严格同序：
+# [0]sun_exposure [1]skin_visibility [2]ingredient_depth [3]authenticity
+# [4]demo_friendliness [5]reapplication_context [6]audience_female_skew [7]narrative_pace
+#
+# 向量为手工定义（基于公开产品定位），不是测量值 —— 与运动相机品类同样的口径。
+#
+# 注意：这里的单品是示意性的品类原型（户外运动型 / 日常护肤型 / 儿童型），
+# 不是任何真实品牌的真实产品。接入真实客户时替换为其真实产品线。
+
+competitor_keywords:
+  - "anessa"
+  - "安热沙"
+  - "biore"
+  - "碧柔"
+  - "la roche-posay"
+  - "理肤泉"
+  - "supergoop"
+  - "neutrogena"
+  - "露得清"
+  - "shiseido"
+  - "资生堂"
+
+products:
+  - id: outdoor_spf50
+    name: "Outdoor Sport SPF50+ (prototype)"
+    description: "面向高强度户外运动的防水抗汗防晒，主打持久、不脱妆、涉水场景补涂友好"
+    vector: [0.95, 0.7, 0.4, 0.7, 0.5, 0.95, 0.4, 0.6]
+    feature_weights:
+      防水抗汗:
+        dims: [reapplication_context, sun_exposure]
+        weight: 0.4
+        note: "涉水与出汗场景越多，防水持久的卖点越有落点"
+      高倍防护:
+        dims: [sun_exposure, skin_visibility]
+        weight: 0.3
+        note: "强日照下大面积皮肤暴露，高SPF的必要性最直观"
+      真实实测:
+        dims: [authenticity]
+        weight: 0.2
+        note: "户外品类的说服力来自真实场景实测，而非棚拍口播"
+      成分背书:
+        dims: [ingredient_depth]
+        weight: 0.1
+        note: "户外用户更看重体感，成分讲解是加分项而非核心"
+
+  - id: daily_essence
+    name: "Daily Skincare Sunscreen Essence (prototype)"
+    description: "面向日常通勤的精华质地防晒，主打肤感轻薄、可作妆前、成分温和"
+    vector: [0.4, 0.9, 0.85, 0.6, 0.95, 0.25, 0.9, 0.5]
+    feature_weights:
+      肤感轻薄:
+        dims: [demo_friendliness, skin_visibility]
+        weight: 0.35
+        note: "质地与上脸效果必须靠近景特写才能呈现"
+      成分温和:
+        dims: [ingredient_depth]
+        weight: 0.3
+        note: "日常护肤受众关心防晒剂类型与刺激性"
+      护肤受众:
+        dims: [audience_female_skew]
+        weight: 0.25
+        note: "受众护肤关注度越高，精华型防晒越有共鸣"
+      日常场景:
+        dims: [sun_exposure]
+        weight: 0.1
+        note: "通勤级日照即可，不依赖极端户外场景"
+
+  - id: kids_mineral
+    name: "Kids Mineral Sunscreen (prototype)"
+    description: "面向儿童的物理防晒，主打成分安全、无刺激、家庭户外场景"
+    vector: [0.75, 0.6, 0.9, 0.9, 0.7, 0.7, 0.7, 0.35]
+    feature_weights:
+      成分安全:
+        dims: [ingredient_depth, authenticity]
+        weight: 0.45
+        note: "儿童品类的购买决策几乎完全由成分安全与可信度驱动"
+      家庭户外:
+        dims: [sun_exposure, reapplication_context]
+        weight: 0.3
+        note: "亲子户外活动是主要使用场景"
+      演示直观:
+        dims: [demo_friendliness]
+        weight: 0.15
+        note: "物理防晒的泛白与涂抹过程需要镜头呈现"
+      受众重合:
+        dims: [audience_female_skew]
+        weight: 0.1
+        note: "护肤关注度与育儿受众有部分重合，但非决定因素"

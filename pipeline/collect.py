@@ -22,13 +22,13 @@ import yaml
 from dotenv import load_dotenv
 
 from pipeline.adapters.youtube_adapter import YouTubeAdapter
+from pipeline.common import config
 from pipeline.common.logging import get_logger
 from pipeline.common.quota import QuotaTracker
 
 logger = get_logger("collect")
 
 ROOT = Path(__file__).resolve().parent
-CONFIG_PATH = ROOT / "config" / "seeds.yaml"
 RAW_DIR = ROOT / "raw" / "youtube"
 SEED_CACHE_PATH = ROOT / "artifacts" / "seed_channels.json"
 
@@ -41,10 +41,8 @@ def _parse_iso(ts: str) -> datetime:
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
-def load_seeds() -> list[dict]:
-    with open(CONFIG_PATH, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return data["seeds"]
+def load_seeds(category: str | None = None) -> list[dict]:
+    return config.load_seeds(category)
 
 
 def _print_quota_budget_plan(quota: QuotaTracker, extend_calls: int | None, existing_candidate_count: int) -> None:
@@ -80,13 +78,16 @@ DAILY_UNIT_BUDGET_FOR_LOG = 10000  # mirrors quota.DAILY_UNIT_BUDGET, for the lo
 
 
 def run(limit_channels: int | None, max_search_calls: int | None, force_search_refresh: bool = False,
-        extend_discovery_calls: int | None = None, extend_search_type: str = "channel"):
+        extend_discovery_calls: int | None = None, extend_search_type: str = "channel",
+        category: str | None = None):
     load_dotenv(ROOT.parent / ".env")
+    category = config.resolve(category)
     api_key = os.environ.get("YOUTUBE_API_KEY")
     if not api_key:
         raise SystemExit("YOUTUBE_API_KEY not set — copy .env.example to .env and fill it in")
 
-    seeds = load_seeds()
+    seeds = load_seeds(category)
+    logger.info("category=%s, %d seed keywords", category, len(seeds))
     if max_search_calls is None:
         max_search_calls = min(len(seeds), 20)
 
@@ -213,9 +214,10 @@ if __name__ == "__main__":
         "--extend-search-type", default="channel", choices=["channel", "video"],
         help="search.list 'type' param for the extension calls (default: channel)",
     )
+    config.add_category_argument(parser)
     args = parser.parse_args()
     result = run(
         args.limit_channels, args.max_search_calls, args.force_search_refresh,
-        args.extend_discovery_calls, args.extend_search_type,
+        args.extend_discovery_calls, args.extend_search_type, args.category,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))

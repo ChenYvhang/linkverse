@@ -1,0 +1,55 @@
+# 防晒品类种子关键词 —— Stage1 search.list 输入。
+#
+# 尚未执行采集：search.list 单价 100 units，跑满这 18 条要 1800 units。
+# 执行前请确认当日 YouTube 配额余量（pipeline/common/quota.py 硬顶 10000）。
+#
+# 选词逻辑覆盖两类达人，两者都是防晒的真实受众而非同一批人：
+#   户外场景类 —— 有真实日照暴露与补涂需求，但未必讲成分
+#   护肤测评类 —— 会拆解成分与肤感，但日照场景弱
+# 现有 action_camera 的 2083 个频道里，冲浪/滑雪一类与前者部分重合，采集时
+# 会自然去重（seed_channels.json 按 channel_id 缓存，不会重复计费）。
+#
+# vertical: 垂类标签，与频道后续打标一致。
+
+seeds:
+  # 护肤测评类
+  - keyword: "sunscreen review"
+    vertical: "护肤测评"
+  - keyword: "防晒测评"
+    vertical: "护肤测评"
+  - keyword: "skincare routine spf"
+    vertical: "护肤测评"
+  - keyword: "sunscreen ingredients explained"
+    vertical: "护肤测评"
+  - keyword: "korean sunscreen"
+    vertical: "护肤测评"
+  - keyword: "防晒霜推荐"
+    vertical: "护肤测评"
+  - keyword: "dermatologist sunscreen"
+    vertical: "护肤测评"
+
+  # 户外场景类
+  - keyword: "beach vlog summer"
+    vertical: "海滨户外"
+  - keyword: "surf lifestyle vlog"
+    vertical: "海滨户外"
+  - keyword: "hiking vlog summer"
+    vertical: "山地户外"
+  - keyword: "outdoor skincare"
+    vertical: "户外护肤"
+  - keyword: "户外防晒"
+    vertical: "户外护肤"
+  - keyword: "trail running summer heat"
+    vertical: "山地户外"
+  - keyword: "snow skiing sunscreen"
+    vertical: "雪地户外"
+
+  # 家庭 / 儿童场景
+  - keyword: "family beach day"
+    vertical: "亲子户外"
+  - keyword: "kids sun protection"
+    vertical: "亲子户外"
+  - keyword: "亲子户外 防晒"
+    vertical: "亲子户外"
+  - keyword: "baby skincare routine"
+    vertical: "亲子户外"

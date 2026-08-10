@@ -18,8 +18,7 @@ pipeline/config/products.yaml. Writes data/dataset.json.
 import json
 from pathlib import Path
 
-import yaml
-
+from pipeline.common import config
 from pipeline.common.logging import get_logger
 from pipeline.common.variants import normalize_variant
 from pipeline.score import SUBSCRIBER_TIERS, TOP_K_LIST
@@ -33,18 +32,21 @@ FEATURES_PATH = ARTIFACTS_DIR / "features.json"
 SCORES_PATH = ARTIFACTS_DIR / "scores.json"
 QUOTA_LOG_PATH = ARTIFACTS_DIR / "quota_log.json"
 VALIDATE_REPORT_PATH = ARTIFACTS_DIR / "validate_report.json"
-VISION_CACHE_DIR = ROOT / "cache" / "vision"
-DECISIONS_CACHE_DIR = ROOT / "cache" / "decisions"
-SCRIPTS_CACHE_DIR = ROOT / "cache" / "scripts"
-VARIANT_TRANSLATIONS_CACHE_DIR = ROOT / "cache" / "variant_translations"
-CONTENT_TRANSLATIONS_CACHE_DIR = ROOT / "cache" / "content_translations"
-PRODUCTS_PATH = ROOT / "config" / "products.yaml"
+# Every per-channel cache is keyed by (category, channel): the same creator can
+# be a candidate in more than one category, with a different content_vector,
+# decision and script in each, because each category scores them in its own
+# semantic space. <root>/<category>/<channel_id>.json.
+CACHE_ROOT = ROOT / "cache"
 # Deliberately NOT under web/public/: everything in that directory is copied
 # verbatim into the deploy bundle, and this file is 60MB+ that no runtime code
 # ever fetches (the frontend reads web/public/linkverse.json, the trimmed
 # subset built from this one). Keeping it here makes it a build input, not a
 # shipped asset.
-DATASET_OUT_PATH = ROOT.parent / "data" / "dataset.json"
+DATA_ROOT = ROOT.parent / "data"
+
+
+def dataset_out_path(category: str) -> Path:
+    return DATA_ROOT / category / "dataset.json"
 
 # Video-level fields kept in the output (drop internal-only ones like raw
 # tags/description to keep dataset.json lean — the frontend doesn't need them).
@@ -101,54 +103,61 @@ def _load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
-def load_vision_cache() -> dict:
-    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in VISION_CACHE_DIR.glob("*.json")}
+def cache_dir(name: str, category: str) -> Path:
+    return CACHE_ROOT / name / category
 
 
-def load_decisions_cache() -> dict:
-    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in DECISIONS_CACHE_DIR.glob("*.json")}
+def _load_cache_dir(name: str, category: str) -> dict:
+    d = cache_dir(name, category)
+    if not d.exists():
+        return {}
+    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in d.glob("*.json")}
 
 
-def load_variant_translations_cache() -> dict:
+def load_vision_cache(category: str) -> dict:
+    return _load_cache_dir("vision", category)
+
+
+def load_decisions_cache(category: str) -> dict:
+    return _load_cache_dir("decisions", category)
+
+
+def load_variant_translations_cache(category: str) -> dict:
     """pipeline/translate_variants.py output: real English translations of
     decide.py's creative_variants, for the decisions that don't have full
     Top-20 scripts (which are already bilingual on their own). Missing here
     just means "not translated yet" — build_creator must not fabricate one."""
-    if not VARIANT_TRANSLATIONS_CACHE_DIR.exists():
-        return {}
-    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in VARIANT_TRANSLATIONS_CACHE_DIR.glob("*.json")}
+    return _load_cache_dir("variant_translations", category)
 
 
-def load_content_translations_cache() -> dict:
+def load_content_translations_cache(category: str) -> dict:
     """pipeline/translate_content.py output: real English translations of
     vision.evidence/sport_types and decision.reasoning/localization_notes/
     risk_review.conclusion/price_range.basis — free-text LLM output that
     isn't a fixed vocabulary (unlike camera_perspective/narrative_pace,
     which the frontend already translates via a dictionary lookup). Missing
     here just means "not translated yet" — build_creator must not fabricate one."""
-    if not CONTENT_TRANSLATIONS_CACHE_DIR.exists():
-        return {}
-    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in CONTENT_TRANSLATIONS_CACHE_DIR.glob("*.json")}
+    return _load_cache_dir("content_translations", category)
 
 
-def load_scripts_for(channel_id: str, product_id: str) -> list[dict] | None:
+def load_scripts_for(channel_id: str, product_id: str, category: str) -> list[dict] | None:
     """pipeline/scripts.py writes one file per (channel, product, platform,
     language): {channel_id}_{product_id}_{platform}_{language}.json. Glob by
     the exact channel_id/product_id prefix rather than splitting the filename
     on "_" — both channel IDs (YouTube's base64url alphabet includes "_") and
     product IDs (e.g. "ace_pro2") can themselves contain underscores, so
     positional parsing would silently misattribute variants."""
-    if not SCRIPTS_CACHE_DIR.exists():
+    d = cache_dir("scripts", category)
+    if not d.exists():
         return None
-    matches = sorted(SCRIPTS_CACHE_DIR.glob(f"{channel_id}_{product_id}_*.json"))
+    matches = sorted(d.glob(f"{channel_id}_{product_id}_*.json"))
     if not matches:
         return None
     return [json.loads(p.read_text(encoding="utf-8")) for p in matches]
 
 
-def load_products() -> list[dict]:
-    with open(PRODUCTS_PATH, encoding="utf-8") as f:
-        return yaml.safe_load(f)["products"]
+def load_products(category: str | None = None) -> list[dict]:
+    return config.load_products(category)
 
 
 def build_creator(
@@ -158,6 +167,7 @@ def build_creator(
     decision: dict | None,
     variant_translation: dict | None = None,
     content_translation: dict | None = None,
+    category: str | None = None,
 ) -> dict:
     videos_out = [{k: v.get(k) for k in VIDEO_FIELDS} for v in channel["videos"]]
     thumbnails = [v["thumbnail_url"] for v in sorted(channel["videos"], key=lambda v: v["published_at"], reverse=True) if v.get("thumbnail_url")][:8]
@@ -233,20 +243,22 @@ def build_creator(
         # Full scripts only exist for the Top-20 (pipeline/scripts.py); None
         # here means "not generated yet", not "no script exists" — frontend
         # falls back to decision.creative_variants when this is null.
-        "scripts": load_scripts_for(channel["channel_id"], decision["recommended_product"]) if decision else None,
+        "scripts": load_scripts_for(channel["channel_id"], decision["recommended_product"],
+                                    config.resolve(category)) if decision else None,
     }
 
 
-def run() -> dict:
+def run(category: str | None = None) -> dict:
+    category = config.resolve(category)
     features_data = _load_json(FEATURES_PATH)
     scores_data = _load_json(SCORES_PATH)
     quota_log = _load_json(QUOTA_LOG_PATH) or {}
     validate_report = _load_json(VALIDATE_REPORT_PATH) or {}
-    vision_cache = load_vision_cache()
-    decisions_cache = load_decisions_cache()
-    variant_translations_cache = load_variant_translations_cache()
-    content_translations_cache = load_content_translations_cache()
-    products = load_products()
+    vision_cache = load_vision_cache(category)
+    decisions_cache = load_decisions_cache(category)
+    variant_translations_cache = load_variant_translations_cache(category)
+    content_translations_cache = load_content_translations_cache(category)
+    products = load_products(category)
 
     channels = features_data["channels"]
     scores_by_id = scores_data["scores"] if scores_data else {}
@@ -263,6 +275,7 @@ def run() -> dict:
             decisions_cache.get(cid),
             variant_translations_cache.get(cid),
             content_translations_cache.get(cid),
+            category,
         ))
     # Fill in the per-creator potential method now that we know it globally
     for c in creators:
@@ -327,21 +340,28 @@ def run() -> dict:
         "creators": creators,
     }
 
-    DATASET_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    DATASET_OUT_PATH.write_text(json.dumps(dataset, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("wrote %s (%.1f MB)", DATASET_OUT_PATH, DATASET_OUT_PATH.stat().st_size / 1e6)
+    out_path = dataset_out_path(category)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(dataset, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("wrote %s (%.1f MB)", out_path, out_path.stat().st_size / 1e6)
 
     summary = {
+        "category": category,
         "channel_count": len(channels),
         "video_count": total_videos,
         "vision_covered": vision_covered,
         "decision_covered": decision_covered,
-        "output_path": str(DATASET_OUT_PATH),
-        "output_size_mb": round(DATASET_OUT_PATH.stat().st_size / 1e6, 2),
+        "output_path": str(out_path),
+        "output_size_mb": round(out_path.stat().st_size / 1e6, 2),
     }
     logger.info("=== DONE === %s", summary)
     return summary
 
 
 if __name__ == "__main__":
-    print(json.dumps(run(), ensure_ascii=False, indent=2))
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    config.add_category_argument(parser)
+    args = parser.parse_args()
+    print(json.dumps(run(args.category), ensure_ascii=False, indent=2))

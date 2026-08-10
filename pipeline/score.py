@@ -55,15 +55,14 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GroupKFold, KFold, train_test_split
 from sklearn.metrics import accuracy_score, brier_score_loss
 
+from pipeline.common import config
 from pipeline.common.logging import get_logger
 
 logger = get_logger("score")
 
 ROOT = Path(__file__).resolve().parent
 FEATURES_PATH = ROOT / "artifacts" / "features.json"
-VISION_CACHE_DIR = ROOT / "cache" / "vision"
-DIMENSIONS_PATH = ROOT / "config" / "dimensions.yaml"
-PRODUCTS_PATH = ROOT / "config" / "products.yaml"
+VISION_CACHE_ROOT = ROOT / "cache" / "vision"
 SCORES_OUT_PATH = ROOT / "artifacts" / "scores.json"
 
 # ---------------------------------------------------------------------------
@@ -705,19 +704,17 @@ def _calibration_bins(pred_prob: np.ndarray, y_true: np.ndarray, n_bins: int = 1
 # Resonance score (R) — untouched from the prior version.
 # ---------------------------------------------------------------------------
 
-def load_dimensions_index() -> dict:
-    with open(DIMENSIONS_PATH, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return {d["key"]: d["index"] for d in data["dimensions"]}
+def load_dimensions_index(category: str | None = None) -> dict:
+    return config.load_dimension_index(category)
 
 
-def load_products() -> list[dict]:
-    with open(PRODUCTS_PATH, encoding="utf-8") as f:
-        return yaml.safe_load(f)["products"]
+def load_products(category: str | None = None) -> list[dict]:
+    return config.load_products(category)
 
 
-def load_vision_cache() -> dict:
-    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in VISION_CACHE_DIR.glob("*.json")}
+def load_vision_cache(category: str | None = None) -> dict:
+    cache_dir = VISION_CACHE_ROOT / config.resolve(category)
+    return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in cache_dir.glob("*.json")}
 
 
 def cosine_similarity_with_contributions(content_vec: list[float], product_vec: list[float]) -> tuple[float, list[float]]:
@@ -762,7 +759,13 @@ def compute_resonance_scores(channels: list[dict], vision_cache: dict, products:
     return resonance
 
 
-def run() -> dict:
+def run(category: str | None = None) -> dict:
+    # Only the resonance half (R) is category-specific: it compares each
+    # creator's content_vector against this category's product vectors, in this
+    # category's semantic space. The potential half (P) is pure channel
+    # dynamics — growth, momentum, seasonality — and means the same thing
+    # whatever you are selling, so it is computed once, category-independent.
+    category = config.resolve(category)
     data = json.loads(FEATURES_PATH.read_text(encoding="utf-8"))
     channels = data["channels"]
     fetched_at = _parse_iso(data["fetched_at"])
@@ -877,9 +880,9 @@ def run() -> dict:
         for ch in channels:
             potential_scores[ch["channel_id"]] = {"value": heuristic_potential_score(ch["features"])}
 
-    dim_index = load_dimensions_index()
-    products = load_products()
-    vision_cache = load_vision_cache()
+    dim_index = load_dimensions_index(category)
+    products = load_products(category)
+    vision_cache = load_vision_cache(category)
     resonance = compute_resonance_scores(channels, vision_cache, products, dim_index)
 
     out = {
@@ -902,4 +905,9 @@ def run() -> dict:
 
 
 if __name__ == "__main__":
-    print(json.dumps(run(), ensure_ascii=False, indent=2))
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    config.add_category_argument(parser)
+    args = parser.parse_args()
+    print(json.dumps(run(args.category), ensure_ascii=False, indent=2))

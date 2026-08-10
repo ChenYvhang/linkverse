@@ -52,6 +52,60 @@ black-box module that isn't backed by real data.
 
 ---
 
+## Product categories
+
+A **category** is one product vertical. Each owns a *semantic space*: the dimensions vision.py
+scores creators on, the product vectors score.py measures resonance against, the competitor
+keywords the exclusivity rule scans for, and the seed keywords collect.py searches.
+
+These are per-category because a dimension only means something inside its vertical. "Stabilization
+demand" is a strong signal for an action camera and noise for a sunscreen; "sun exposure" is the
+reverse. Since R is `cosine(content_vector, product_vector)`, both vectors have to live in the same
+coordinate system — so **adding a category is not adding rows to products.yaml**. It means defining
+a new set of dimensions and re-running vision analysis for that category's creators. The existing
+351 action-camera vision analyses carry over to a new category not at all.
+
+| Category | Dimensions | Status |
+|---|---|---|
+| `action_camera` | POV ratio, stabilization demand, motion complexity, scene extremity, gear visibility, narrative pace, scene diversity, slow-motion demand | **ready** — 351 creators analyzed |
+| `sunscreen` | sun exposure, skin visibility, ingredient depth, authenticity, demo friendliness, reapplication context, audience skincare lean, narrative pace | `onboarding` — space defined, no data collected yet |
+| `supplement` | training intensity, physique visibility, science rigor, nutrition focus, audience experience, authenticity, demo friendliness, narrative pace | `onboarding` — space defined, no data collected yet |
+
+The two spaces share exactly one dimension key (`narrative_pace`) and it is deliberate that they
+share no more: the same creator's vector is read differently in each space, and gets a different
+ranking.
+
+```
+pipeline/config/
+├── categories.yaml                 # registry: id, label, status, default
+└── categories/<id>/
+    ├── dimensions.yaml             # the semantic space + the vision output schema
+    ├── products.yaml               # product vectors (same order as dimensions) + competitor keywords
+    └── seeds.yaml                  # Stage1 seed keywords
+```
+
+Every stage takes `--category` (default `action_camera`), and every per-channel cache is keyed by
+`(category, channel)` — the same creator can be a candidate in more than one category with a
+different vector, decision and script in each:
+
+```bash
+python -m pipeline.collect --category sunscreen     # 18 keywords x 100 units = 1,800 quota units
+python -m pipeline.vision  --category sunscreen
+python -m pipeline.score   --category sunscreen
+python -m pipeline.build   --category sunscreen     # -> data/sunscreen/dataset.json
+cd web && npm run build:data -- --category sunscreen # -> public/linkverse/sunscreen.json
+```
+
+Note that **P (potential) is category-independent** and R (resonance) is not: potential is pure
+channel dynamics — growth, momentum, seasonality — which mean the same thing whatever you are
+selling. Only resonance is scored per space.
+
+To activate an `onboarding` category once its data exists, flip its `status` in `categories.yaml`
+and in `web/src/linkverse/categories.ts`. Until then the frontend shows placeholders rather than
+fabricated scores, per the honesty statement below.
+
+---
+
 ## Data flow
 
 ```mermaid
@@ -78,7 +132,7 @@ flowchart LR
         G[Creative variants + vision evidence + decision card, English translation]
     end
     subgraph Stage6["Stage6 build.py"]
-        H[data/dataset.json]
+        H[data/&lt;category&gt;/dataset.json]
     end
     subgraph Trim["web/scripts/build-linkverse.mjs"]
         I[web/public/linkverse.json]
@@ -95,7 +149,7 @@ flowchart LR
 
 Every stage writes an independently inspectable intermediate file (`raw/` → `artifacts/features.json`
 → `cache/vision/` → `artifacts/scores.json` → `cache/decisions/` → `cache/scripts/` /
-`cache/*_translations/` → `data/dataset.json`). Any step can be reproduced from disk without
+`cache/*_translations/` → `data/<category>/dataset.json`). Any step can be reproduced from disk without
 rerunning everything upstream. `web/scripts/build-linkverse.mjs` is a separate, later addition: it
 trims `dataset.json` (62MB, 2083 creators, mostly Chinese) down to `web/public/linkverse.json`
 (~1.7MB, the 351 creators with a generated decision, English-only) — the only file the frontend
@@ -117,30 +171,30 @@ Demo/
 │   ├── scripts.py                 # Stage5b full bilingual scripts for the Top-20 (4 variants/creator)
 │   ├── translate_variants.py      # Stage5c English translation of creative_variants for non-Top-20 creators
 │   ├── translate_content.py       # Stage5d English translation of vision evidence + decision free text
-│   ├── build.py                   # Stage6 merges every stage's output -> data/dataset.json
+│   ├── build.py                   # Stage6 merges every stage's output -> data/<category>/dataset.json
 │   ├── validate.py                # REFACTOR_PLAN.md gate: age bias / seasonal leakage / GroupKFold, etc.
 │   ├── adapters/
 │   │   ├── platform_base.py       # PlatformAdapter abstract base (YouTube is the only implementation)
 │   │   └── youtube_adapter.py
 │   ├── common/
+│   │   ├── config.py               # category-aware config loading, shared by every stage
 │   │   ├── http.py                # shared request handling: timeouts/retries/backoff
 │   │   ├── quota.py                # YouTube quota counter, hard-stops over budget
 │   │   ├── logging.py
 │   │   └── variants.py             # normalizes creative_variants field names (fixes LLM output typos)
 │   ├── config/
-│   │   ├── dimensions.yaml         # 8-dimensional semantic space shared by vision and product vectors
-│   │   ├── products.yaml           # selling-point vectors for the 4 Insta360 products
-│   │   └── seeds.yaml              # seed keyword list
+│   │   ├── categories.yaml         # category registry — see "Product categories" above
+│   │   └── categories/<id>/        # dimensions.yaml + products.yaml + seeds.yaml, per category
 │   ├── raw/youtube/                # raw collected JSON (written per fetched_at, never overwritten)
-│   ├── cache/                      # per-channel_id cached intermediates (vision/decisions/scripts/*_translations)
+│   ├── cache/<kind>/<category>/    # per-(category, channel_id) intermediates
 │   └── artifacts/                  # features.json / scores.json / quota_log.json / validate_report.json
-├── data/dataset.json                # full Stage6 output; gitignored, and deliberately NOT under
+├── data/<category>/dataset.json     # full Stage6 output; gitignored, and deliberately NOT under
 │                                    # web/public/ — nothing fetches it at runtime, so keeping it
 │                                    # out of that directory keeps 60MB+ out of the deploy bundle
 ├── reports/                        # REFACTOR_PLAN.md backtest reports (backtest.md + charts)
 ├── web/                            # React + TypeScript + Vite frontend
 │   ├── api/diagnose.ts             # Vercel serverless function: DeepSeek-backed onboarding chat
-│   ├── scripts/build-linkverse.mjs # data/dataset.json -> public/linkverse.json trim/translate step
+│   ├── scripts/build-linkverse.mjs # data/<category>/dataset.json -> the app's trimmed JSON
 │   ├── public/
 │   │   ├── linkverse.json          # trimmed, English-only dataset the app actually fetches
 │   │   └── linkverse/*.json        # per-category datasets (sunscreen/supplement: placeholders)
@@ -167,7 +221,7 @@ Demo/
 | 5b | `scripts.py` | Full scripts for the Top-20 creators by combined score: TikTok vertical / YouTube horizontal × Chinese/English, each with hook/storyboard/voiceover/captions/CTA | `cache/scripts/{channel_id}_{product_id}_{platform}_{lang}.json` |
 | 5c | `translate_variants.py` | Translates `creative_variants` for creators outside the Top-20 (who only got a lightweight decision card) | `cache/variant_translations/{channel_id}.json` |
 | 5d | `translate_content.py` | Translates vision evidence (`sport_types`/`evidence`) and decision free text (`reasoning`/`localization_notes`/`risk_review.conclusion`/`price_range.basis`) — per-creator LLM output, not a fixed vocabulary, so it needs a real translation; built-in validation retries any output that still contains CJK characters | `cache/content_translations/{channel_id}.json` |
-| 6 | `build.py` | Merges every cache + feature + score above into the frontend's data source | `data/dataset.json` |
+| 6 | `build.py` | Merges every cache + feature + score above into the frontend's data source | `data/<category>/dataset.json` |
 | — | `validate.py` | REFACTOR_PLAN.md gate script: age-bias before/after, seasonal-leakage fix comparison, GroupKFold-vs-KFold pseudo-duplicate detection, label-tightening comparison, calibration curve/Brier/conformal coverage, tiered backtest table — any hard gate failing exits non-zero | `reports/*.md`, `reports/*.png` |
 
 Every outbound request (YouTube / GLM / DeepSeek) goes through `pipeline/common/http.py`: timeouts
@@ -179,7 +233,7 @@ written as fabricated data.
 
 ## Current dataset snapshot
 
-These numbers come from `data/dataset.json`'s `meta` and can be refreshed anytime by
+These numbers come from `data/action_camera/dataset.json`'s `meta` and can be refreshed anytime by
 rerunning `python -m pipeline.build`:
 
 | Metric | Value |
@@ -272,7 +326,7 @@ python -m pipeline.decide --limit 3
 python -m pipeline.scripts --top-n 20
 python -m pipeline.translate_variants --limit 3
 python -m pipeline.translate_content --limit 3
-python -m pipeline.build                             # merges everything into data/dataset.json
+python -m pipeline.build                             # merges everything into data/action_camera/dataset.json
 ```
 
 ### Frontend
@@ -280,7 +334,7 @@ python -m pipeline.build                             # merges everything into da
 ```bash
 cd web
 npm install
-npm run build:data   # regenerates web/public/linkverse.json from data/dataset.json
+npm run build:data   # regenerates web/public/linkverse.json from data/action_camera/dataset.json
 npm run dev           # http://localhost:5173/
 npm run build          # tsc -b && vite build
 ```

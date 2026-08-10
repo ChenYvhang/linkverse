@@ -52,9 +52,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
 from dotenv import load_dotenv
 
+from pipeline.common import config
 from pipeline.common.http import call_with_wall_clock_timeout, get_bytes, post_json_once
 from pipeline.common.logging import get_logger
 
@@ -63,8 +63,7 @@ logger = get_logger("vision")
 ROOT = Path(__file__).resolve().parent
 FEATURES_PATH = ROOT / "artifacts" / "features.json"
 SCORES_PATH = ROOT / "artifacts" / "scores.json"
-DIMENSIONS_PATH = ROOT / "config" / "dimensions.yaml"
-CACHE_DIR = ROOT / "cache" / "vision"
+CACHE_ROOT = ROOT / "cache" / "vision"
 FAILURES_PATH = ROOT / "artifacts" / "vision_failures.json"
 
 BACKENDS = {
@@ -93,28 +92,27 @@ MAX_MODEL_RETRIES = 3
 CONCURRENCY = 1  # zhipu free-tier hits HTTP 429 under concurrency; ollama has no VRAM headroom for 2nd context
 RETRY_BACKOFF_SECONDS = (2, 4, 8)
 
-REQUIRED_STRING_FIELDS = ["camera_perspective", "narrative_pace", "evidence"]
-REQUIRED_NUMERIC_FIELDS = [
-    "stabilization_demand", "motion_complexity", "scene_extremity",
-    "gear_visibility", "scene_diversity",
-]
+def cache_dir(category: str | None = None) -> Path:
+    """按品类分目录：同一个达人在不同品类下有不同的 content_vector（一个冲浪
+    博主对运动相机和防晒霜都可能相关，但两套维度完全不同），所以缓存必须以
+    (品类, 频道) 为键，不能只按频道。"""
+    return CACHE_ROOT / config.resolve(category)
 
 
-def load_dimensions() -> list[dict]:
-    with open(DIMENSIONS_PATH, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    dims = sorted(data["dimensions"], key=lambda d: d["index"])
-    return dims
+def load_dimensions(category: str | None = None) -> list[dict]:
+    return config.load_dimensions(category)
 
 
-def build_system_prompt(dims: list[dict]) -> str:
+def build_system_prompt(dims: list[dict], category: str | None = None) -> str:
+    """prompt 完全由品类配置生成 —— 人设、维度锚点、输出 schema 都来自
+    config/categories/<id>/dimensions.yaml，此处不含任何品类专属字段名。"""
+    schema = config.load_vision_schema(category)
     lines = [
-        "你是一名体育/户外内容分析专家，负责判断 YouTube 创作者的视频内容特征，"
-        "用于运动相机（Insta360）的达人营销匹配。",
+        schema["persona"],
         "你会收到该频道最近几条视频的缩略图，以及对应的标题等元数据。",
         "请严格只输出一个 JSON 对象，不要输出任何 JSON 之外的文字、不要用markdown代码块包裹。",
         "",
-        "content_vector 是一个长度为8的数组，每个位置对应下面定义的维度（按 index 顺序），"
+        f"content_vector 是一个长度为{len(dims)}的数组，每个位置对应下面定义的维度（按 index 顺序），"
         "取值范围 0.0-1.0，请参考每个维度的锚点描述打分：",
     ]
     for d in dims:
@@ -122,20 +120,10 @@ def build_system_prompt(dims: list[dict]) -> str:
         for score, desc in sorted(d["anchors"].items()):
             lines.append(f"    {score}: {desc}")
 
+    field_lines = ",\n".join(f'  "{f["key"]}": {f["spec"]}' for f in schema["fields"])
     lines.append(
         "\n请输出如下结构的 JSON（字段名必须完全一致）：\n"
-        "{\n"
-        '  "sport_types": ["字符串数组，如 滑雪/越野跑"],\n'
-        '  "camera_perspective": "字符串，如 第一人称为主 / 第三人称为主 / 混合",\n'
-        '  "stabilization_demand": 0.0到1.0,\n'
-        '  "motion_complexity": 0.0到1.0,\n'
-        '  "scene_extremity": 0.0到1.0,\n'
-        '  "gear_visibility": 0.0到1.0,\n'
-        '  "narrative_pace": "字符串，如 快节奏 / 中等节奏 / 慢节奏",\n'
-        '  "scene_diversity": 0.0到1.0,\n'
-        '  "content_vector": [8个0.0-1.0的浮点数，严格按上面index顺序],\n'
-        '  "evidence": "你的判断依据，必须具体引用你看到的缩略图内容与视频标题，不能泛泛而谈"\n'
-        "}"
+        "{\n" + field_lines + "\n}"
     )
     return "\n".join(lines)
 
@@ -181,28 +169,39 @@ def _extract_json(raw_text: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
-def _validate_vision_json(data: dict) -> None:
-    for field in REQUIRED_STRING_FIELDS:
-        if not isinstance(data.get(field), str) or not data[field].strip():
-            raise ValueError(f"missing/invalid string field: {field}")
-    for field in REQUIRED_NUMERIC_FIELDS:
-        val = data.get(field)
-        if not isinstance(val, (int, float)) or not (0.0 <= float(val) <= 1.0):
-            raise ValueError(f"missing/invalid numeric field: {field}={val!r}")
-    vec = data.get("content_vector")
-    if not isinstance(vec, list) or len(vec) != 8 or not all(
-        isinstance(x, (int, float)) and 0.0 <= float(x) <= 1.0 for x in vec
-    ):
-        raise ValueError(f"invalid content_vector: {vec!r}")
-    if not isinstance(data.get("sport_types"), list):
-        raise ValueError(f"invalid sport_types: {data.get('sport_types')!r}")
+def _validate_vision_json(data: dict, category: str | None = None) -> None:
+    """校验规则同样由品类配置驱动 —— 每个字段的 kind 决定检查方式，新增品类
+    只需在 dimensions.yaml 里声明字段，不必改这里。"""
+    schema = config.load_vision_schema(category)
+    dim_count = len(config.load_dimensions(category))
+
+    for field in schema["fields"]:
+        key, kind = field["key"], field["kind"]
+        val = data.get(key)
+        if kind == "string":
+            if not isinstance(val, str) or not val.strip():
+                raise ValueError(f"missing/invalid string field: {key}")
+        elif kind == "string_list":
+            if not isinstance(val, list):
+                raise ValueError(f"invalid {key}: {val!r}")
+        elif kind == "unit_float":
+            if not isinstance(val, (int, float)) or not (0.0 <= float(val) <= 1.0):
+                raise ValueError(f"missing/invalid numeric field: {key}={val!r}")
+        elif kind == "vector":
+            if not isinstance(val, list) or len(val) != dim_count or not all(
+                isinstance(x, (int, float)) and 0.0 <= float(x) <= 1.0 for x in val
+            ):
+                raise ValueError(f"invalid {key}: {val!r}")
+        else:
+            raise ValueError(f"unknown field kind {kind!r} for {key} in category config")
 
 
 class VisionAdapter:
-    def __init__(self, backend: dict, api_key: str, dims: list[dict]):
+    def __init__(self, backend: dict, api_key: str, dims: list[dict], category: str | None = None):
         self.backend = backend
         self.api_key = api_key
-        self.system_prompt = build_system_prompt(dims)
+        self.category = category
+        self.system_prompt = build_system_prompt(dims, category)
 
     def analyze_channel(self, channel: dict) -> dict:
         videos = select_videos_for_vision(channel)
@@ -234,7 +233,7 @@ class VisionAdapter:
                 )
                 content = resp["choices"][0]["message"]["content"]
                 data = _extract_json(content)
-                _validate_vision_json(data)
+                _validate_vision_json(data, self.category)
                 data["model"] = self.backend["model_tag"]
                 data["source_video_ids"] = [v["video_id"] for v in videos]
                 data["analyzed_at"] = datetime.now(timezone.utc).isoformat()
@@ -251,8 +250,9 @@ class VisionAdapter:
 
 
 def run(limit_channels: int | None, top_n_by_potential: int | None, backend_name: str,
-        shard_index: int = 0, shard_count: int = 1):
+        shard_index: int = 0, shard_count: int = 1, category: str | None = None):
     load_dotenv(ROOT.parent / ".env")
+    category = config.resolve(category)
     backend = BACKENDS[backend_name]
     api_key = "ollama"  # placeholder; required by the client shape, ignored by the local server
     if backend["requires_api_key_env"]:
@@ -260,8 +260,10 @@ def run(limit_channels: int | None, top_n_by_potential: int | None, backend_name
         if not api_key:
             raise SystemExit(f"{backend['requires_api_key_env']} not set in .env")
 
-    dims = load_dimensions()
-    adapter = VisionAdapter(backend, api_key, dims)
+    dims = load_dimensions(category)
+    adapter = VisionAdapter(backend, api_key, dims, category)
+    CACHE_DIR = cache_dir(category)
+    logger.info("category=%s (%d dimensions), cache=%s", category, len(dims), CACHE_DIR)
 
     data = json.loads(FEATURES_PATH.read_text(encoding="utf-8"))
     channels = data["channels"]
@@ -352,8 +354,10 @@ if __name__ == "__main__":
                               "(use with --shard-count to run two backends at once without overlap)")
     parser.add_argument("--shard-count", type=int, default=1,
                          help="total number of concurrent shards (default 1 = no sharding)")
+    config.add_category_argument(parser)
     args = parser.parse_args()
     print(json.dumps(
-        run(args.limit_channels, args.top_n_by_potential, args.backend, args.shard_index, args.shard_count),
+        run(args.limit_channels, args.top_n_by_potential, args.backend, args.shard_index,
+            args.shard_count, args.category),
         ensure_ascii=False, indent=2,
     ))

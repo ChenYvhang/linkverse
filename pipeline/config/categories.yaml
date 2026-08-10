@@ -1,0 +1,36 @@
+# 品类注册表 —— 每个品类是一个独立的产品垂类，拥有自己的语义空间。
+#
+# 为什么按品类分：共振分 R 是 content_vector 与 product vector 的余弦相似度，
+# 两者必须在同一坐标系里。而坐标系本身是垂类专属的 ——「防抖需求强度」对运动
+# 相机是强信号，对防晒霜则毫无意义。所以新增一个品类不是往 products.yaml 里
+# 加几行，而是要定义一套新的维度、新的种子词、并对相应达人重跑视觉分析。
+#
+# 每个品类在 config/categories/<id>/ 下拥有三个文件：
+#   dimensions.yaml  语义空间定义 + 视觉分析的输出 schema
+#   products.yaml    该品类下各单品的卖点向量（与 dimensions 严格同序）
+#   seeds.yaml       Stage1 采集用的种子关键词
+#
+# status:
+#   ready      有真实数据，前端正常展示
+#   onboarding 配置已就位但尚未采集数据，前端显示占位（不伪造数据，见 README 诚实性声明）
+#
+# 新增品类后请同步 web/src/linkverse/categories.ts 与 web/api/diagnose.ts 的
+# CATEGORY_LIST（后者是刻意的重复而非 import，原因见该文件注释）。
+
+default: action_camera
+
+categories:
+  - id: action_camera
+    name: "运动相机"
+    label_en: "Action Cameras"
+    status: ready
+
+  - id: sunscreen
+    name: "防晒"
+    label_en: "Sunscreen"
+    status: onboarding
+
+  - id: supplement
+    name: "运动补剂"
+    label_en: "Supplements"
+    status: onboarding

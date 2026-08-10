@@ -9,6 +9,6 @@ pipeline/cache/
 pipeline/artifacts/
 web/node_modules/
 web/dist/
-data/dataset.json
+data/
 .claude/
 screenshots/

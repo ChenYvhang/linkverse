@@ -1,0 +1,117 @@
+# 防晒品类的八维语义空间。
+#
+# 与运动相机品类零重合 —— 这正是分品类的理由。运动相机问的是「这个人拍不拍
+# 极限运动、需不需要相机」（防抖需求、装备可见度、子弹时间）；防晒问的是
+# 「这个人的受众会不会买防晒、他说的话可不可信」（日照暴露、肤质呈现、成分
+# 讲解深度）。同一个冲浪博主在两个坐标系里得到完全不同的向量。
+#
+# 状态：维度定义已就位，但尚未采集数据、尚未跑视觉分析。前端对应品类标记为
+# onboarding，展示占位而不是伪造的分数（见 README 诚实性声明第 3 条）。
+
+vision:
+  persona: "你是一名美妆个护内容分析专家，负责判断 YouTube 创作者的视频内容特征，用于防晒产品的达人营销匹配。"
+
+  fields:
+    - key: content_topics
+      kind: string_list
+      spec: '["字符串数组，如 户外运动/护肤测评/日常穿搭"]'
+    - key: audience_skin_focus
+      kind: string
+      spec: '"字符串，如 以护肤为核心 / 顺带提及 / 几乎不涉及"'
+    - key: sun_exposure
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: skin_visibility
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: ingredient_depth
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: authenticity
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: demo_friendliness
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: reapplication_context
+      kind: unit_float
+      spec: "0.0到1.0"
+    - key: content_vector
+      kind: vector
+      spec: "[8个0.0-1.0的浮点数，严格按上面index顺序]"
+    - key: evidence
+      kind: string
+      spec: '"你的判断依据，必须具体引用你看到的缩略图内容与视频标题，不能泛泛而谈"'
+
+dimensions:
+  - key: sun_exposure
+    index: 0
+    name: "日照暴露程度"
+    description: "内容中人物处于强日照/户外环境的比例 —— 防晒需求的最直接前提"
+    anchors:
+      0.0: "几乎全程室内或夜间，无日照场景"
+      0.5: "室内外各半，或多为温和日照（阴天、清晨傍晚）"
+      1.0: "几乎全程强日照户外（沙滩、雪山、正午山地）"
+
+  - key: skin_visibility
+    index: 1
+    name: "皮肤可见度"
+    description: "画面中面部/肢体皮肤的展示程度 —— 决定防晒效果能否被观众直观看到"
+    anchors:
+      0.0: "人物极少出镜，或全程厚重衣物/护具遮挡"
+      0.5: "面部常规出镜，肢体皮肤偶尔可见"
+      1.0: "大面积皮肤持续可见（泳装、短袖运动、面部特写为主）"
+
+  - key: ingredient_depth
+    index: 2
+    name: "成分讲解深度"
+    description: "创作者讨论产品成分/原理的深入程度 —— 高值适合主打配方的产品，低值适合主打体感的产品"
+    anchors:
+      0.0: "从不提及成分，只讲使用感受或不涉及产品"
+      0.5: "会提到SPF/PA等基本指标，但不展开原理"
+      1.0: "深入讲解防晒剂类型、光谱、肤感差异等专业内容"
+
+  - key: authenticity
+    index: 3
+    name: "内容真实感"
+    description: "内容呈现为真实使用体验而非广告腔的程度 —— 直接影响带货可信度"
+    anchors:
+      0.0: "高度商业化，几乎全是口播广告与promo素材"
+      0.5: "商业内容与真实生活内容混杂"
+      1.0: "以真实日常/实测为主，商业植入克制且自然"
+
+  - key: demo_friendliness
+    index: 4
+    name: "产品演示适配度"
+    description: "内容形式适合展示涂抹、质地、上脸效果的程度"
+    anchors:
+      0.0: "远景动作为主，无法呈现产品使用过程"
+      0.5: "偶有近景特写，可容纳简短演示"
+      1.0: "大量近景/特写与手部操作镜头，天然适合产品演示"
+
+  - key: reapplication_context
+    index: 5
+    name: "补涂场景契合度"
+    description: "内容中出现出汗、下水、长时间户外等需要补涂场景的程度 —— 防水/持久卖点的落点"
+    anchors:
+      0.0: "无出汗或涉水场景"
+      0.5: "有中等强度活动，偶有出汗"
+      1.0: "大量涉水、剧烈出汗或全天候户外场景"
+
+  - key: audience_female_skew
+    index: 6
+    name: "受众护肤倾向"
+    description: "受众对护肤话题的关注程度（由内容选题与互动语境推断，不是性别标签）"
+    anchors:
+      0.0: "受众几乎不关注护肤话题"
+      0.5: "护肤是次要话题，偶尔出现"
+      1.0: "受众高度关注护肤，护肤内容互动显著更高"
+
+  - key: narrative_pace
+    index: 7
+    name: "叙事节奏"
+    description: "剪辑快慢与信息密度：数值越高节奏越快，越低越舒缓"
+    anchors:
+      0.0: "长镜头为主，节奏舒缓，少剪辑点"
+      0.5: "中等剪辑频率，叙事平稳推进"
+      1.0: "快节奏剪辑，镜头切换密集，信息量大"

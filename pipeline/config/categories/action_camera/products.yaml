@@ -7,6 +7,23 @@
 # vision.py 输出的 content_vector 做 cosine similarity 计算共振分 R。
 # feature_weights: 功能级卖点对应的维度子集及权重，用于前端"共振分维度贡献"横条图。
 
+# 竞品关键词 —— Stage5 (decide.py) 先用这份规则扫频道标题/简介/标签，命中即为
+# 独家性风险；LLM 只负责复核这条规则的判定，而不是自己凭印象猜竞品。
+# 与单品向量同属品类知识，所以放在同一个文件里，随品类切换。
+competitor_keywords:
+  - "gopro"
+  - "go pro"
+  - "dji"
+  - "osmo"
+  - "akaso"
+  - "sjcam"
+  - "insta360 competitor"
+  - "ricoh theta"
+  - "kandao"
+  - "yi action"
+  - "campark"
+  - "dji osmo action"
+
 products:
   - id: x5
     name: "Insta360 X5"

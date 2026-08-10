@@ -26,15 +26,16 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from pipeline.common import config
 from pipeline.common.http import post_json
 from pipeline.common.logging import get_logger
 
 logger = get_logger("translate_content")
 
 ROOT = Path(__file__).resolve().parent
-VISION_CACHE_DIR = ROOT / "cache" / "vision"
-DECISIONS_CACHE_DIR = ROOT / "cache" / "decisions"
-CONTENT_TRANSLATIONS_CACHE_DIR = ROOT / "cache" / "content_translations"
+VISION_CACHE_ROOT = ROOT / "cache" / "vision"
+DECISIONS_CACHE_ROOT = ROOT / "cache" / "decisions"
+CONTENT_TRANSLATIONS_CACHE_ROOT = ROOT / "cache" / "content_translations"
 FAILURES_PATH = ROOT / "artifacts" / "translate_content_failures.json"
 
 MODEL_NAME = "deepseek-v4-flash"
@@ -70,11 +71,11 @@ def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def load_targets(limit: int | None) -> list[dict]:
+def load_targets(limit: int | None, category: str) -> list[dict]:
     targets = []
-    for p in sorted(DECISIONS_CACHE_DIR.glob("*.json")):
+    for p in sorted((DECISIONS_CACHE_ROOT / category).glob("*.json")):
         channel_id = p.stem
-        vision_path = VISION_CACHE_DIR / f"{channel_id}.json"
+        vision_path = VISION_CACHE_ROOT / category / f"{channel_id}.json"
         if not vision_path.exists():
             # Shouldn't happen (vision/decisions caches are the same 351-channel
             # set as of this stage's design), but don't fabricate a translation
@@ -176,36 +177,38 @@ def call_deepseek(api_key: str, target: dict) -> dict:
     raise last_exc
 
 
-def process_one(api_key: str, target: dict) -> str:
+def process_one(api_key: str, target: dict, category: str) -> str:
     channel_id = target["channel_id"]
     data = call_deepseek(api_key, target)
 
-    CONTENT_TRANSLATIONS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache_path = CONTENT_TRANSLATIONS_CACHE_DIR / f"{channel_id}.json"
+    cache_dir = CONTENT_TRANSLATIONS_CACHE_ROOT / category
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / f"{channel_id}.json"
     payload = {**data, "model": MODEL_NAME}
     cache_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return channel_id
 
 
-def run(limit: int | None):
+def run(limit: int | None, category: str | None = None):
     load_dotenv(ROOT.parent / ".env")
+    category = config.resolve(category)
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
         raise SystemExit("DEEPSEEK_API_KEY not set in .env")
 
-    targets = load_targets(limit)
+    targets = load_targets(limit, category)
     logger.info("%d channels need vision+decision content translation (limit=%s)", len(targets), limit)
 
     todo = []
     for t in targets:
-        if (CONTENT_TRANSLATIONS_CACHE_DIR / f"{t['channel_id']}.json").exists():
+        if (CONTENT_TRANSLATIONS_CACHE_ROOT / category / f"{t['channel_id']}.json").exists():
             continue
         todo.append(t)
     logger.info("%d already cached, %d to process this run", len(targets) - len(todo), len(todo))
 
     succeeded, failures = 0, []
     with ThreadPoolExecutor(max_workers=CONCURRENCY) as pool:
-        futures = {pool.submit(process_one, api_key, t): t for t in todo}
+        futures = {pool.submit(process_one, api_key, t, category): t for t in todo}
         for fut in as_completed(futures):
             t = futures[fut]
             try:
@@ -229,5 +232,6 @@ def run(limit: int | None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="only process first N targets (validation)")
+    config.add_category_argument(parser)
     args = parser.parse_args()
-    print(json.dumps(run(args.limit), ensure_ascii=False, indent=2))
+    print(json.dumps(run(args.limit, args.category), ensure_ascii=False, indent=2))

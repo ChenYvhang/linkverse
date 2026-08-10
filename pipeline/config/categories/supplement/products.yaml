@@ -1,0 +1,85 @@
+# 运动补剂品类单品卖点向量 —— 与同目录 dimensions.yaml 的八维严格同序：
+# [0]training_intensity [1]physique_visibility [2]science_rigor [3]nutrition_focus
+# [4]audience_experience [5]authenticity [6]demo_friendliness [7]narrative_pace
+#
+# 向量为手工定义（基于公开品类定位），不是测量值。
+# 单品为品类原型（乳清蛋白 / 肌酸 / 电解质），非任何真实品牌产品。
+
+competitor_keywords:
+  - "myprotein"
+  - "optimum nutrition"
+  - "on whey"
+  - "muscletech"
+  - "dymatize"
+  - "ghost lifestyle"
+  - "transparent labs"
+  - "西王"
+  - "诺特兰德"
+  - "肌肉科技"
+
+products:
+  - id: whey_isolate
+    name: "Whey Protein Isolate (prototype)"
+    description: "分离乳清蛋白，主打高蛋白含量、低乳糖、口味与溶解性，面向增肌人群"
+    vector: [0.8, 0.85, 0.6, 0.9, 0.6, 0.7, 0.85, 0.5]
+    feature_weights:
+      高蛋白含量:
+        dims: [nutrition_focus, training_intensity]
+        weight: 0.35
+        note: "训练强度与饮食话题占比越高，蛋白摄入的卖点越硬"
+      体态可见:
+        dims: [physique_visibility]
+        weight: 0.25
+        note: "增肌效果需要体态呈现才有说服力"
+      冲泡演示:
+        dims: [demo_friendliness]
+        weight: 0.25
+        note: "口味与溶解性只能靠实际冲泡镜头传达"
+      成分背书:
+        dims: [science_rigor]
+        weight: 0.15
+        note: "分离乳清的差异化在工艺，需要一定科普能力"
+
+  - id: creatine_mono
+    name: "Creatine Monohydrate (prototype)"
+    description: "一水肌酸，主打证据充分、无风味可混合、性价比高，面向进阶训练者"
+    vector: [0.9, 0.6, 0.95, 0.7, 0.85, 0.8, 0.4, 0.4]
+    feature_weights:
+      证据充分:
+        dims: [science_rigor]
+        weight: 0.4
+        note: "肌酸是研究最充分的补剂，科学严谨的创作者最能讲清楚"
+      进阶受众:
+        dims: [audience_experience, training_intensity]
+        weight: 0.3
+        note: "受众训练阶段越高，越理解肌酸的价值"
+      真实长期:
+        dims: [authenticity]
+        weight: 0.2
+        note: "效果需要数周积累，真实长期记录比单次口播可信"
+      体态呈现:
+        dims: [physique_visibility]
+        weight: 0.1
+        note: "视觉变化不如增肌产品直接，非核心卖点"
+
+  - id: electrolyte_mix
+    name: "Electrolyte Hydration Mix (prototype)"
+    description: "电解质冲剂，主打耐力场景补水、无糖、便携，面向跑者与户外训练者"
+    vector: [0.75, 0.35, 0.55, 0.6, 0.45, 0.85, 0.75, 0.6]
+    feature_weights:
+      耐力场景:
+        dims: [training_intensity]
+        weight: 0.35
+        note: "长时间耐力训练是电解质流失的真实场景"
+      便携演示:
+        dims: [demo_friendliness]
+        weight: 0.3
+        note: "随身冲泡的便利性靠场景镜头传达"
+      真实使用:
+        dims: [authenticity]
+        weight: 0.25
+        note: "训练中实际饮用比棚拍更有代入感"
+      入门友好:
+        dims: [audience_experience]
+        weight: 0.1
+        note: "无门槛品类，不依赖受众专业度"

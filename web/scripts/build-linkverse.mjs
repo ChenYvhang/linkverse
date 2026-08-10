@@ -14,8 +14,27 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATASET_PATH = path.join(__dirname, "../../data/dataset.json");
-const OUTPUT_PATH = path.join(__dirname, "../public/linkverse.json");
+
+// Which product category to trim. Each has its own dataset, because each
+// scores creators in its own semantic space (see pipeline/config/categories.yaml).
+const DEFAULT_CATEGORY = "action_camera";
+const category = parseCategoryArg(process.argv.slice(2)) ?? DEFAULT_CATEGORY;
+
+const DATASET_PATH = path.join(__dirname, `../../data/${category}/dataset.json`);
+// The default category is what the app loads on first paint, so it keeps the
+// top-level filename; the rest live under linkverse/. This mirrors dataPath in
+// web/src/linkverse/categories.ts — the two must agree or the fetch 404s.
+const OUTPUT_PATH =
+  category === DEFAULT_CATEGORY
+    ? path.join(__dirname, "../public/linkverse.json")
+    : path.join(__dirname, `../public/linkverse/${category}.json`);
+
+function parseCategoryArg(argv) {
+  const i = argv.indexOf("--category");
+  if (i !== -1) return argv[i + 1];
+  const inline = argv.find((a) => a.startsWith("--category="));
+  return inline ? inline.slice("--category=".length) : null;
+}
 
 // Fixed-vocabulary raw-Chinese pipeline outputs that don't have their own
 // per-record `_en` translation (unlike reasoning/basis/evidence, which do).
@@ -148,16 +167,16 @@ function main() {
   if (!existsSync(DATASET_PATH)) {
     console.error(
       `${DATASET_PATH} not found.\n\n` +
-        `It is the pipeline's Stage6 output and is gitignored, so a fresh clone\n` +
-        `will not have it. Regenerate it with:\n\n` +
-        `    python -m pipeline.build\n\n` +
+        `It is the pipeline's Stage6 output for the "${category}" category and is\n` +
+        `gitignored, so a fresh clone will not have it. Regenerate it with:\n\n` +
+        `    python -m pipeline.build --category ${category}\n\n` +
         `(that step reads pipeline/artifacts/ and pipeline/cache/, which are also\n` +
         `gitignored — see README "Local development" if those are missing too).`,
     );
     process.exit(1);
   }
 
-  console.log(`Reading ${DATASET_PATH} ...`);
+  console.log(`Reading ${DATASET_PATH} (category: ${category}) ...`);
   const dataset = JSON.parse(readFileSync(DATASET_PATH, "utf8"));
   const productsById = new Map(dataset.products.map((p) => [p.id, p.name]));
 
