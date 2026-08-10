@@ -70,7 +70,18 @@ function buildGmailComposeUrl(creator: Creator, script: Script | undefined) {
   return `https://mail.google.com/mail/?${params.toString()}`;
 }
 
-export default function Kit({ creator, onClose }: { creator: Creator; onClose: () => void }) {
+export default function Kit({
+  creator,
+  onClose,
+  tracked,
+  onTrack,
+}: {
+  creator: Creator;
+  onClose: () => void;
+  /** Already on the pipeline — the button becomes a state readout, not a no-op. */
+  tracked?: boolean;
+  onTrack?: () => void;
+}) {
   const [tab, setTab] = useState(0);
   const [copied, setCopied] = useState(false);
   const script = creator.scripts[tab];
@@ -107,6 +118,20 @@ export default function Kit({ creator, onClose }: { creator: Creator; onClose: (
             {creator.market ? ` · ${creator.market.replace(/_/g, " ")}` : ""}
           </p>
         </div>
+        {onTrack && (
+          <button
+            onClick={onTrack}
+            aria-pressed={!!tracked}
+            title={tracked ? "Already on your pipeline" : "Add to your pipeline"}
+            className={`shrink-0 px-2.5 py-1 rounded-full text-xs border transition-colors ${
+              tracked
+                ? "bg-accent text-white border-accent"
+                : "bg-surface text-ink border-line hover:border-accent"
+            }`}
+          >
+            {tracked ? "Tracked" : "Track"}
+          </button>
+        )}
         <button onClick={onClose} aria-label="Close"
           className="text-muted hover:text-ink text-xl leading-none px-1">×</button>
       </div>

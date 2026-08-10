@@ -5,6 +5,8 @@ import Kit from "./Kit";
 import Onboarding from "./Onboarding";
 import { CATEGORIES, type CategoryDef, type CategoryId } from "./categories";
 import type { ProductMatch } from "./diagnose";
+import Track from "./Track";
+import { loadTracked, saveTracked, setStage, type TrackedMap } from "./trackStore";
 
 const fmtSubs = (n: number) =>
   n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`;
@@ -180,11 +182,22 @@ export default function LinkVerse() {
   // Non-null once the chat has placed the visitor's own product on this
   // category's axes; the ranking below is then theirs, not the demo's.
   const [match, setMatch] = useState<ProductMatch | null>(null);
+  // The feedback layer's state. Same category-keyed localStorage approach as
+  // the selection pool, for the same reason: losing it to a refresh would make
+  // the one place the product records real outcomes untrustworthy.
+  const [tracked, setTrackedState] = useState<TrackedMap>(() => loadTracked(READY_CATEGORY.id));
+
+  const setTracked = (m: TrackedMap) => {
+    setTrackedState(m);
+    saveTracked(categoryId, m);
+  };
+  const trackCreator = (id: string) => setTracked(setStage(tracked, id, tracked[id]?.stage ?? "tracked"));
 
   useEffect(() => {
     setSelected(null);
     setFilters(NO_FILTERS);
     setPoolIds(loadPool(categoryId));
+    setTrackedState(loadTracked(categoryId));
   }, [categoryId]);
 
   useEffect(() => {
@@ -324,6 +337,15 @@ export default function LinkVerse() {
         </div>
       )}
 
+      {revealed && !error && data && !unmatched && category.status !== "onboarding" && (
+        <Track
+          creators={creators}
+          tracked={tracked}
+          setTracked={setTracked}
+          onSelect={(id) => setSelected(id)}
+        />
+      )}
+
       {/* Rendered outside #results on purpose: that wrapper's reveal
           animation leaves a lingering (identity) transform on itself, which
           would otherwise become the containing block for these fixed-
@@ -356,7 +378,14 @@ export default function LinkVerse() {
             </div>
           )}
 
-          {selectedCreator && <Kit creator={selectedCreator} onClose={() => setSelected(null)} />}
+          {selectedCreator && (
+            <Kit
+              creator={selectedCreator}
+              onClose={() => setSelected(null)}
+              tracked={!!tracked[selectedCreator.id]}
+              onTrack={() => trackCreator(selectedCreator.id)}
+            />
+          )}
         </>
       )}
     </div>
