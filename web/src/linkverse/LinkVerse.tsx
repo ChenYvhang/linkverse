@@ -18,7 +18,16 @@ const noop = () => {};
 export default function LinkVerse() {
   const [categoryId, setCategoryId] = useState<CategoryId>(READY_CATEGORY.id);
   const category = CATEGORIES.find((c) => c.id === categoryId) ?? READY_CATEGORY;
-  const { data, error } = useData(READY_CATEGORY.dataPath);
+  // A ready category loads its OWN dataset. This used to always load
+  // READY_CATEGORY.dataPath, so every category's dataPath except the first
+  // ready one was dead config: flipping a category to "ready" would have
+  // silently kept showing the first category's creators.
+  // Onboarding categories still borrow the ready dataset, because the
+  // "preparing" screen renders it blurred as a teaser rather than showing
+  // that category's (nonexistent) creators.
+  const { data, error } = useData(
+    category.status === "ready" ? category.dataPath : READY_CATEGORY.dataPath,
+  );
   const [selected, setSelected] = useState<string | null>(null);
   const [onlyPriority, setOnlyPriority] = useState(false);
   const [poolIds, setPoolIds] = useState<Set<string>>(new Set());
@@ -321,6 +330,26 @@ function EvidenceSection({
   onlyPriority: boolean;
   setOnlyPriority: (v: boolean) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const q = query.trim().toLowerCase();
+  const matches = useMemo(
+    () =>
+      q
+        ? shown.filter(
+            (c) =>
+              c.title.toLowerCase().includes(q) ||
+              (c.sport ?? "").toLowerCase().includes(q) ||
+              c.market.replace(/_/g, " ").toLowerCase().includes(q),
+          )
+        : shown,
+    [shown, q],
+  );
+  // Collapsed to the top 12 by default so the page still reads as a shortlist;
+  // searching or expanding reaches the rest.
+  const rows = q || showAll ? matches : top;
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-12 grid lg:grid-cols-[1.15fr_1fr] gap-10 items-start">
       <div>
@@ -339,13 +368,48 @@ function EvidenceSection({
         <div className="rounded-xl border border-line p-2 shadow-[0_0_0_1px_rgba(31,53,224,0.05),0_16px_40px_-20px_rgba(31,53,224,0.25)]">
           <Scope creators={shown} selected={selected} onSelect={onSelect} />
         </div>
+        {/* The dot encoding was explained in prose above only; a reader who
+            skims the paragraph had no way to decode the ring or the size. */}
+        <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-[11px] text-muted">
+          <li className="flex items-center gap-1.5">
+            <svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5"
+              fill="var(--color-accent)" opacity="0.9" /></svg>
+            Priority (P and R both ≥ 60)
+          </li>
+          <li className="flex items-center gap-1.5">
+            <svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="3.5"
+              fill="#aab0ba" opacity="0.55" /></svg>
+            Other creators
+          </li>
+          <li className="flex items-center gap-1.5">
+            <svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5"
+              fill="var(--color-accent)" opacity="0.9" stroke="var(--color-surface)" strokeWidth="1.5" /></svg>
+            Full script ready
+          </li>
+        </ul>
       </div>
 
       {/* top picks list */}
       <div>
-        <h2 className="font-display font-bold text-ink text-xl mb-3">Top picks</h2>
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          <h2 className="font-display font-bold text-ink text-xl">Top picks</h2>
+          <span className="num text-xs text-muted">
+            {rows.length} of {shown.length}
+          </span>
+        </div>
+        {/* Without this, only the first 12 creators were reachable outside the
+            chart — everyone else could be found by hovering dots and no other
+            way. */}
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search creators…"
+          aria-label="Search creators by name or category"
+          className="w-full mb-3 px-3 py-2 text-sm rounded-lg border border-line bg-surface text-ink placeholder:text-muted focus:outline-none focus:border-accent"
+        />
         <ol className="divide-y divide-line border border-line rounded-xl overflow-hidden">
-          {top.map((c, i) => (
+          {rows.map((c, i) => (
             <li key={c.id}
               className={`flex items-center gap-2 pl-3 pr-1 hover:bg-paper transition-colors ${
                 selected === c.id ? "bg-accent/[0.06]" : ""
@@ -372,7 +436,20 @@ function EvidenceSection({
             </li>
           ))}
         </ol>
-        <p className="text-[11px] text-muted mt-2">Ranked by combined score (Potential × Resonance).</p>
+        {rows.length === 0 && (
+          <p className="text-sm text-muted text-center py-6 border border-line border-t-0 rounded-b-xl">
+            No creator matches “{query}”.
+          </p>
+        )}
+        <div className="flex items-center justify-between gap-3 mt-2">
+          <p className="text-[11px] text-muted">Ranked by combined score (Potential × Resonance).</p>
+          {!query && shown.length > top.length && (
+            <button onClick={() => setShowAll((v) => !v)}
+              className="text-[11px] font-medium text-accent hover:underline shrink-0">
+              {showAll ? "Show top 12" : `Show all ${shown.length}`}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

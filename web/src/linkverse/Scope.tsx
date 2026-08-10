@@ -33,8 +33,8 @@ export default function Scope({
   const zoneY = plot(PRIORITY_P, "y");
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto select-none" role="img"
-      aria-label="Creators plotted by Potential and Resonance">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto select-none" role="group"
+      aria-label={`Creators plotted by potential and resonance, ${creators.length} points`}>
       <defs>
         <linearGradient id="priority-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="var(--color-accent)" />
@@ -69,21 +69,40 @@ export default function Scope({
         },
       )}
 
-      {/* points */}
+      {/* points — reachable by mouse, touch and keyboard alike. Each point is
+          a real button: tabbable, activatable with Enter/Space, and it shows
+          the same detail card on focus that a mouse gets on hover, so keyboard
+          and screen-reader users are not limited to the (12-row) list. */}
       {creators.map((c) => {
         const pri = isPriority(c);
         const sel = c.id === selected;
         const cx = plot(c.R, "x");
         const cy = plot(c.P, "y");
+        const describe =
+          `${c.title}, potential ${Math.round(c.P)}, resonance ${Math.round(c.R)}` +
+          `, ${fmtSubs(c.subs)} subscribers${c.hasScript ? ", script ready" : ""}`;
         return (
-          <g key={c.id} className="cursor-pointer"
+          <g key={c.id} className="cursor-pointer scope-point"
+            role="button" tabIndex={0} aria-label={describe}
             onMouseEnter={() => setHover(c)} onMouseLeave={() => setHover(null)}
-            onClick={() => onSelect(c.id)}>
+            // Touch has no hover: surface the card on the same tap that selects.
+            onPointerDown={() => setHover(c)}
+            onFocus={() => setHover(c)} onBlur={() => setHover(null)}
+            onClick={() => onSelect(c.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(c.id);
+              }
+            }}>
             {sel && <circle cx={cx} cy={cy} r="11" fill="none" stroke="var(--color-accent)" strokeWidth="2" />}
             <circle cx={cx} cy={cy} r={sel ? 6 : pri ? 5 : 3.5}
               fill={pri ? "url(#priority-gradient)" : "#aab0ba"}
               opacity={pri ? 0.9 : 0.55}
               stroke={c.hasScript ? "var(--color-surface)" : "none"} strokeWidth={c.hasScript ? 1.5 : 0} />
+            {/* Enlarged transparent hit area: a 3.5px dot is far below the
+                ~24px minimum a finger can reliably hit on a phone. */}
+            <circle cx={cx} cy={cy} r="14" fill="transparent" />
           </g>
         );
       })}

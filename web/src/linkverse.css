@@ -63,3 +63,18 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Scatter points are focusable buttons (see Scope.tsx). SVG elements get no
+   usable default focus ring in most browsers, so draw one explicitly —
+   without it, keyboard navigation is technically possible but invisible. */
+.scope-point:focus {
+  outline: none;
+}
+.scope-point:focus-visible circle:first-of-type {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+.scope-point:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
