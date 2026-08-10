@@ -124,6 +124,33 @@ def build_candidates(features_data: dict, scores_data: dict, products: list[dict
     return candidates[:top_k]
 
 
+def _vision_summary_lines(vision: dict, category: str | None) -> str:
+    """Render every non-vector field the category's vision schema declares, so
+    this isn't hardcoded to action_camera's field names (sport_types,
+    camera_perspective, narrative_pace) — sunscreen and supplement declare a
+    different set (content_topics, audience_skin_focus, ...), and printing
+    "Camera perspective: None" for a sunscreen creator was a symptom of the
+    same hardcoding.
+
+    Values are Chinese for the qualitative fields (no per-category translation
+    pipeline exists yet — translate_content.py only ever handled
+    action_camera's field names). DeepSeek reads Chinese fine; the system
+    prompt is what stops it from quoting that Chinese back into English output
+    (see the anti-leak instruction below) rather than a translation step here.
+    """
+    schema = config.load_vision_schema(category)
+    lines = []
+    for f in schema["fields"]:
+        if f["kind"] == "vector":
+            continue
+        label = f["key"].replace("_", " ").capitalize()
+        # English translations exist only for action_camera today
+        # (translate_content.py); prefer them when present.
+        val = vision.get(f"{f['key']}_en") or vision.get(f["key"])
+        lines.append(f"{label}: {val}")
+    return "\n".join(lines)
+
+
 def build_prompt(candidate: dict, product: dict, vision: dict, competitor_check: dict,
                  price_range: dict, category: str | None = None) -> list[dict]:
     """Prompt is English, and the brand/category framing comes from config.
@@ -144,8 +171,12 @@ def build_prompt(candidate: dict, product: dict, vision: dict, competitor_check:
         "and vision-model evidence — and must return an actionable collaboration brief. "
         "Every claim must cite the specific numbers or evidence given to you; no generic filler. "
         "Write everything in English, including creator-facing copy, whatever language the "
-        "channel itself uses. Respond with a single json object in exactly the requested shape, "
-        "and nothing outside it."
+        "channel itself uses. Some of the vision evidence below is in Chinese (no translation step "
+        "has run for it yet) — read and understand it, but do not quote, transliterate, or otherwise "
+        "include ANY Chinese or other non-English words or characters anywhere in your response, "
+        "including inside parentheses as example localization terms. Describe localization strategy "
+        "in English prose only, without quoting target-language words. Respond with a single json "
+        "object in exactly the requested shape, and nothing outside it."
     )
     raw_contributions = candidate["resonance_by_product"][candidate["recommended_product_id"]].get("feature_breakdown", {})
     # Feature keys are Chinese in config; send the English labels so they can be
@@ -166,10 +197,7 @@ Recommended product: {product['name']} ({product['description']})
 Feature-level resonance contributions: {json.dumps(contributions, ensure_ascii=False)}
 
 [VISION EVIDENCE] (from the model's analysis of this channel's recent thumbnails and titles)
-Content types: {vision.get('sport_types_en') or vision.get('content_topics') or vision.get('sport_types')}
-Camera perspective: {vision.get('camera_perspective')}
-Narrative pace: {vision.get('narrative_pace')}
-Evidence: {vision.get('evidence_en') or vision.get('evidence')}
+{_vision_summary_lines(vision, category)}
 
 [COMPETITOR RULE CHECK] (a keyword rule already scanned titles/description/tags — review its
 finding, do not re-guess it)
@@ -203,7 +231,38 @@ angle) — not restatements of each other.
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
-def call_deepseek(api_key: str, messages: list[dict]) -> dict:
+CJK_RE = re.compile(r"[一-鿿]+")
+
+
+def _leftover_chinese(data: dict, native_text: str) -> list[str]:
+    """Guards against the model quoting a non-English term anyway despite the
+    system prompt's explicit instruction not to — a real, observed failure
+    mode: "they use anti-UV messaging (抗UV, 防曬)" survived that instruction
+    once already. native_text (the channel's own title + video titles) is
+    excluded, since quoting the creator's own name is allowed and expected —
+    only text the pipeline itself generated counts as a violation."""
+    offenders = []
+
+    def check(field: str, text: str | None):
+        if not text:
+            return
+        for run in set(CJK_RE.findall(text)):
+            if run not in native_text:
+                offenders.append(f"{field}: {run!r}")
+
+    check("reasoning", data.get("reasoning"))
+    check("localization_notes", data.get("localization_notes"))
+    check("risk_review.conclusion", (data.get("risk_review") or {}).get("conclusion"))
+    for i, v in enumerate(data.get("creative_variants") or []):
+        check(f"creative_variants[{i}].variant_name", v.get("variant_name"))
+        check(f"creative_variants[{i}].script_direction", v.get("script_direction"))
+        check(f"creative_variants[{i}].target_platform_note", v.get("target_platform_note"))
+        check(f"creative_variants[{i}].target_market", v.get("target_market"))
+        check(f"creative_variants[{i}].subtitle_highlights", " ".join(v.get("subtitle_highlights") or []))
+    return offenders
+
+
+def call_deepseek(api_key: str, messages: list[dict], native_text: str = "") -> dict:
     last_exc = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -224,6 +283,9 @@ def call_deepseek(api_key: str, messages: list[dict]) -> dict:
                     raise ValueError(f"missing field in DeepSeek output: {field}")
             if not isinstance(data["creative_variants"], list) or len(data["creative_variants"]) < 2:
                 raise ValueError(f"creative_variants must have >=2 entries, got {data.get('creative_variants')!r}")
+            offenders = _leftover_chinese(data, native_text)
+            if offenders:
+                raise ValueError(f"non-English text in output despite instruction: {offenders}")
             return data
         except Exception as exc:
             last_exc = exc
@@ -269,7 +331,10 @@ def run(limit: int | None, top_k: int, category: str | None = None):
 
         try:
             messages = build_prompt(cand, product, vision, competitor_check, price_range, category)
-            llm_out = call_deepseek(api_key, messages)
+            native_text = cand["channel"]["title"] + " " + " ".join(
+                v.get("title") or "" for v in cand["channel"].get("videos", [])
+            )
+            llm_out = call_deepseek(api_key, messages, native_text)
             decision = {
                 "recommended_product": cand["recommended_product_id"],
                 "potential_score": cand["potential"],
