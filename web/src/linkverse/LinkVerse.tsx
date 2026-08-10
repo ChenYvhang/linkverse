@@ -28,15 +28,47 @@ function cosine(a: number[], b: number[]): number {
   return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-// Re-score and re-rank against the visitor's product. Creators without a
-// content vector keep their pipeline scores and sort last rather than being
-// dropped or given a fabricated score.
+// Re-score and re-rank against the visitor's product.
+//
+// Cosine is taken on CENTERED vectors — each axis minus that axis's mean over
+// the analyzed pool — so a match means "this creator is unusually strong where
+// the product needs strength", not merely "both numbers are positive". Raw
+// cosine over non-negative vectors is badly compressed: measured on this
+// dataset, a helmet-mounted POV camera and a studio interview gimbal (products
+// that should want opposite creators) shared 6 of their top 10 under raw
+// cosine and 1 of 10 under centering.
+//
+// This deliberately differs from the precomputed R in the dataset, which
+// pipeline/score.py computes with raw cosine. The two never appear together:
+// a view is either ranked against the visitor's product (all centered) or
+// against the pipeline's (all raw). Changing score.py to match would
+// invalidate every cached decision card, which is a pipeline decision, not a
+// frontend one.
+function axisMeans(creators: Creator[], n: number): number[] {
+  const sums = new Array(n).fill(0);
+  let count = 0;
+  for (const c of creators) {
+    const v = c.vision?.contentVector;
+    if (!v || v.length !== n) continue;
+    for (let i = 0; i < n; i++) sums[i] += v[i];
+    count++;
+  }
+  return count === 0 ? sums : sums.map((s) => s / count);
+}
+
 function rescore(creators: Creator[], match: ProductMatch): Creator[] {
+  const n = match.vector.length;
+  const mean = axisMeans(creators, n);
+  const centre = (v: number[]) => v.map((x, i) => x - mean[i]);
+  const pv = centre(match.vector);
+
   return creators
     .map((c) => {
       const v = c.vision?.contentVector;
-      if (!v || v.length !== match.vector.length) return c;
-      const R = Math.round(cosine(v, match.vector) * 1000) / 10;
+      if (!v || v.length !== n) return c;
+      // Centered cosine is signed (-1..1); map onto the same 0..100 scale the
+      // rest of the UI reads, so a below-average fit lands under 50.
+      const R = Math.round(((cosine(centre(v), pv) + 1) / 2) * 1000) / 10;
       const C = Math.round(Math.sqrt(Math.max(c.P, 0) * Math.max(R, 0)) * 10) / 10;
       return { ...c, R, C, product: match.product };
     })
