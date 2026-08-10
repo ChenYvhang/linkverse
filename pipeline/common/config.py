@@ -101,6 +101,12 @@ def load_products(category: str | None = None) -> list[dict]:
     return _load_yaml(category_dir(category) / "products.yaml")["products"]
 
 
+def load_feature_labels(category: str | None = None) -> dict[str, str]:
+    """{feature_weights 的中文键: 英文展示名}。这些键会进入脚本 prompt 与前端
+    的共振贡献图，而 UI 只显示英文，所以需要这张固定词表。"""
+    return _load_yaml(category_dir(category) / "products.yaml").get("feature_labels", {})
+
+
 def load_competitor_keywords(category: str | None = None) -> list[str]:
     """Stage5 独家性风险规则用的竞品关键词 —— 同属品类知识（运动相机的竞品是
     GoPro/DJI，防晒霜完全是另一批品牌）。"""
@@ -109,6 +115,29 @@ def load_competitor_keywords(category: str | None = None) -> list[str]:
 
 def load_seeds(category: str | None = None) -> list[dict]:
     return _load_yaml(category_dir(category) / "seeds.yaml")["seeds"]
+
+
+def load_vertical_labels(category: str | None = None) -> dict[str, str]:
+    """{中文垂类标签: 英文展示名}。UI 只显示英文（YouTube 原生的频道名/视频
+    标题除外），而 vertical 是内部的中文标签，所以展示前必须查这张固定词表。"""
+    return _load_yaml(category_dir(category) / "seeds.yaml").get("verticals", {})
+
+
+PIPELINE_ROOT = Path(__file__).resolve().parent.parent
+
+
+def artifacts_dir(category: str | None = None) -> Path:
+    """每个品类有自己的 features.json / scores.json / seed_channels.json：种子词
+    不同 -> 采到的频道池不同，所以这些都是品类内的产物，不能共用一份。
+
+    注意 quota_log.json 不在这里，它留在 artifacts/ 根目录 —— YouTube 的每日
+    10000 units 是 API key 级别的额度，跨品类共享。按品类分开计数会让预算护栏
+    失效：两个品类各以为自己还剩额度，合起来早已超限。"""
+    return PIPELINE_ROOT / "artifacts" / resolve(category)
+
+
+def raw_dir(category: str | None = None) -> Path:
+    return PIPELINE_ROOT / "raw" / "youtube" / resolve(category)
 
 
 def add_category_argument(parser) -> None:

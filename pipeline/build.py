@@ -27,11 +27,9 @@ logger = get_logger("build")
 SUBSCRIBER_TIER_NAMES = [t[0] for t in SUBSCRIBER_TIERS]
 
 ROOT = Path(__file__).resolve().parent
-ARTIFACTS_DIR = ROOT / "artifacts"
-FEATURES_PATH = ARTIFACTS_DIR / "features.json"
-SCORES_PATH = ARTIFACTS_DIR / "scores.json"
-QUOTA_LOG_PATH = ARTIFACTS_DIR / "quota_log.json"
-VALIDATE_REPORT_PATH = ARTIFACTS_DIR / "validate_report.json"
+# quota_log.json stays at the artifacts root: the YouTube daily budget is per
+# API key, shared across categories, not per category.
+QUOTA_LOG_PATH = ROOT / "artifacts" / "quota_log.json"
 # Every per-channel cache is keyed by (category, channel): the same creator can
 # be a candidate in more than one category, with a different content_vector,
 # decision and script in each, because each category scores them in its own
@@ -228,6 +226,12 @@ def build_creator(
         "video_count_total": channel.get("video_count_total"),
         "channel_age_days": channel.get("channel_age_days"),
         "vertical": channel.get("vertical"),
+        # English display label for the (Chinese) internal vertical tag. The UI
+        # is English-only apart from YouTube's own channel/video titles, and
+        # this is a fixed vocabulary, so it's a config lookup rather than an
+        # LLM translation. None means the category config is missing a label —
+        # the UI shows nothing rather than falling back to the Chinese tag.
+        "vertical_en": config.load_vertical_labels(category).get(channel.get("vertical")),
         "thumbnails": thumbnails,
         "videos": videos_out,
         "features": channel.get("features"),
@@ -250,10 +254,11 @@ def build_creator(
 
 def run(category: str | None = None) -> dict:
     category = config.resolve(category)
-    features_data = _load_json(FEATURES_PATH)
-    scores_data = _load_json(SCORES_PATH)
+    artifacts = config.artifacts_dir(category)
+    features_data = _load_json(artifacts / "features.json")
+    scores_data = _load_json(artifacts / "scores.json")
     quota_log = _load_json(QUOTA_LOG_PATH) or {}
-    validate_report = _load_json(VALIDATE_REPORT_PATH) or {}
+    validate_report = _load_json(artifacts / "validate_report.json") or {}
     vision_cache = load_vision_cache(category)
     decisions_cache = load_decisions_cache(category)
     variant_translations_cache = load_variant_translations_cache(category)

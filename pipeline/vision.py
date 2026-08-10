@@ -61,8 +61,7 @@ from pipeline.common.logging import get_logger
 logger = get_logger("vision")
 
 ROOT = Path(__file__).resolve().parent
-FEATURES_PATH = ROOT / "artifacts" / "features.json"
-SCORES_PATH = ROOT / "artifacts" / "scores.json"
+
 CACHE_ROOT = ROOT / "cache" / "vision"
 FAILURES_PATH = ROOT / "artifacts" / "vision_failures.json"
 
@@ -265,7 +264,7 @@ def run(limit_channels: int | None, top_n_by_potential: int | None, backend_name
     CACHE_DIR = cache_dir(category)
     logger.info("category=%s (%d dimensions), cache=%s", category, len(dims), CACHE_DIR)
 
-    data = json.loads(FEATURES_PATH.read_text(encoding="utf-8"))
+    data = json.loads((config.artifacts_dir(category) / 'features.json').read_text(encoding="utf-8"))
     channels = data["channels"]
 
     pending = []
@@ -283,7 +282,7 @@ def run(limit_channels: int | None, top_n_by_potential: int | None, backend_name
         # doesn't need vision at all, so we already have a real score to
         # prioritize by — spend the slow vision budget on the channels most
         # likely to matter for the final P x R ranking, not collection order.
-        scores = json.loads(SCORES_PATH.read_text(encoding="utf-8"))["scores"]
+        scores = json.loads((config.artifacts_dir(category) / 'scores.json').read_text(encoding="utf-8"))["scores"]
         pending.sort(key=lambda ch: -(scores.get(ch["channel_id"], {}).get("potential") or -1))
         pending = pending[:top_n_by_potential]
         logger.info("scoped to top %d channels by potential_score (P computed without vision data)",

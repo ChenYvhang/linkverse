@@ -24,10 +24,11 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import average_precision_score, balanced_accuracy_score
 from sklearn.model_selection import GroupKFold, KFold
 
+from pipeline.common import config
 from pipeline.common.logging import get_logger
 from pipeline.validate_features import run as _run_age_bias_check
 from pipeline.score import (
-    FEATURES_PATH, GROUP_KFOLD_SPLITS, PRIMARY_TOP_K, RANDOM_SEED, SCORES_OUT_PATH,
+    GROUP_KFOLD_SPLITS, PRIMARY_TOP_K, RANDOM_SEED,
     SUBSCRIBER_TIERS, TOP_K_LIST,
     _parse_iso, build_eval_rows, build_training_rows, compute_season_coefs,
     label_old_loose, label_tightened, resolve_tightened_threshold, split_main_and_auxiliary,
@@ -91,7 +92,7 @@ def gate_season_leak() -> dict:
     Pass condition: fixed (leak-free) version's lift must be LOWER than the
     leaky version's — a drop is proof the leak was real and is now closed."""
     logger.info("=== GATE 2.2: season coefficient leakage ===")
-    data = json.loads(FEATURES_PATH.read_text(encoding="utf-8"))
+    data = json.loads((config.artifacts_dir() / "features.json").read_text(encoding="utf-8"))
     channels = data["channels"]
     fetched_at = _parse_iso(data["fetched_at"])
 
@@ -431,7 +432,7 @@ def main():
     gate_age_bias()
     season_leak = gate_season_leak()
 
-    data = json.loads(FEATURES_PATH.read_text(encoding="utf-8"))
+    data = json.loads((config.artifacts_dir() / "features.json").read_text(encoding="utf-8"))
     channels = data["channels"]
     fetched_at = _parse_iso(data["fetched_at"])
     main_pool, aux_holdout = split_main_and_auxiliary(channels)
@@ -443,7 +444,7 @@ def main():
 
     logger.info("=== running score.py production pipeline (dual-head model + calibration) ===")
     score_module.run()
-    scores = json.loads(SCORES_OUT_PATH.read_text(encoding="utf-8"))
+    scores = json.loads((config.artifacts_dir() / "scores.json").read_text(encoding="utf-8"))
     if scores["potential"]["method"] == "dual_head_gbdt":
         plot_calibration_curve(scores["potential"]["calibration"]["calibration_curve"],
                                 REPORTS_DIR / "calibration_curve.png")

@@ -9,6 +9,21 @@
 # 误以为可以无限加关键词。
 #
 # vertical: 用于季节因子聚合与前端展示的垂类标签（中文），与频道后续打标一致。
+# 垂类标签的英文名 —— 前端只显示英文（YouTube 原生的频道名/视频标题除外），
+# 而 vertical 是中文的内部标签，所以每个品类必须在这里声明对应的英文展示名。
+# 这是固定词表，不需要 LLM 翻译（与 build-linkverse.mjs 里 camera_perspective /
+# narrative_pace 的处理方式一致）。新增垂类时必须同步补一行，否则前端会拿不到
+# 英文名而显示 null。
+verticals:
+  "滑雪": "Skiing"
+  "骑行": "Cycling"
+  "冲浪": "Surfing"
+  "潜水": "Diving"
+  "摩托": "Motorcycling"
+  "越野跑": "Trail Running"
+  "攀岩": "Climbing"
+  "极限运动综合": "Extreme Sports"
+
 seeds:
   - keyword: "ski pov"
     vertical: "滑雪"

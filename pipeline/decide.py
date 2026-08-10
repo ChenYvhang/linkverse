@@ -41,8 +41,7 @@ from pipeline.common.logging import get_logger
 logger = get_logger("decide")
 
 ROOT = Path(__file__).resolve().parent
-FEATURES_PATH = ROOT / "artifacts" / "features.json"
-SCORES_PATH = ROOT / "artifacts" / "scores.json"
+
 VISION_CACHE_ROOT = ROOT / "cache" / "vision"
 DECISIONS_CACHE_ROOT = ROOT / "cache" / "decisions"
 FAILURES_PATH = ROOT / "artifacts" / "decide_failures.json"
@@ -208,8 +207,8 @@ def run(limit: int | None, top_k: int, category: str | None = None):
     if not api_key:
         raise SystemExit("DEEPSEEK_API_KEY not set in .env")
 
-    features_data = _load_json(FEATURES_PATH)
-    scores_data = _load_json(SCORES_PATH)
+    features_data = _load_json(config.artifacts_dir(category) / 'features.json')
+    scores_data = _load_json(config.artifacts_dir(category) / 'scores.json')
     products = load_products(category)
     products_by_id = {p["id"]: p for p in products}
     vision_cache_dir = VISION_CACHE_ROOT / category

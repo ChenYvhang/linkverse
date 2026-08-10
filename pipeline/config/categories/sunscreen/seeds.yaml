@@ -11,6 +11,19 @@
 #
 # vertical: 垂类标签，与频道后续打标一致。
 
+# 垂类标签的英文名 —— 前端只显示英文（YouTube 原生的频道名/视频标题除外），
+# 而 vertical 是中文的内部标签，所以每个品类必须在这里声明对应的英文展示名。
+# 这是固定词表，不需要 LLM 翻译（与 build-linkverse.mjs 里 camera_perspective /
+# narrative_pace 的处理方式一致）。新增垂类时必须同步补一行，否则前端会拿不到
+# 英文名而显示 null。
+verticals:
+  "护肤测评": "Skincare Reviews"
+  "海滨户外": "Beach & Coastal"
+  "山地户外": "Mountain Outdoors"
+  "雪地户外": "Snow Outdoors"
+  "户外护肤": "Outdoor Skincare"
+  "亲子户外": "Family Outdoors"
+
 seeds:
   # 护肤测评类
   - keyword: "sunscreen review"

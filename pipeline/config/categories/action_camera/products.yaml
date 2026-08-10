@@ -24,6 +24,14 @@ competitor_keywords:
   - "campark"
   - "dji osmo action"
 
+# feature_weights 各卖点的英文展示名 —— 这些中文键会经 scripts.py 注入脚本 prompt
+# 并出现在前端的共振贡献图里，而 UI 只显示英文，所以固定词表在此声明。
+feature_labels:
+  "隐形自拍杆": "Invisible Selfie Stick"
+  "子弹时间": "Bullet Time"
+  "防抖": "Stabilization"
+  "超广角": "Ultra-Wide"
+
 products:
   - id: x5
     name: "Insta360 X5"

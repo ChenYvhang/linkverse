@@ -13,21 +13,26 @@ import json
 import statistics
 from pathlib import Path
 
+from pipeline.common import config
 from pipeline.common.logging import get_logger
 from pipeline.features import BUCKET_DEFS, _linear_slope
 
 logger = get_logger("validate_features")
 
 ROOT = Path(__file__).resolve().parent
-ARTIFACTS_DIR = ROOT / "artifacts"
-FEATURES_PATH = ARTIFACTS_DIR / "features.json"
-REPORT_PATH = ARTIFACTS_DIR / "validate_report.json"
+def features_path(category=None):
+    return config.artifacts_dir(category) / "features.json"
+
+
+def report_path(category=None):
+    return config.artifacts_dir(category) / "validate_report.json"
 
 BUCKET_NAMES = [b[0] for b in BUCKET_DEFS]
 
 
-def run() -> dict:
-    data = json.loads(FEATURES_PATH.read_text(encoding="utf-8"))
+def run(category: str | None = None) -> dict:
+    category = config.resolve(category)
+    data = json.loads(features_path(category).read_text(encoding="utf-8"))
     channels = data["channels"]
 
     by_bucket: dict[str, list[float]] = {name: [] for name in BUCKET_NAMES}
@@ -114,12 +119,19 @@ def run() -> dict:
         },
         "season_coef_summary": season_summary,
     }
-    REPORT_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("wrote %s", REPORT_PATH)
+    out = report_path(category)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("wrote %s", out)
     logger.info("=== OVERALL: %s ===", "PASS, safe to proceed to Stage3" if drift_ok else "FAIL, do not proceed")
     return report
 
 
 if __name__ == "__main__":
-    result = run()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    config.add_category_argument(parser)
+    args = parser.parse_args()
+    result = run(args.category)
     print(json.dumps({"drift_check": result["drift_check"], "null_velocity_ratio": result["null_velocity_ratio"]}, ensure_ascii=False, indent=2))

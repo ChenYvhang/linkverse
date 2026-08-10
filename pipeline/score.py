@@ -61,9 +61,8 @@ from pipeline.common.logging import get_logger
 logger = get_logger("score")
 
 ROOT = Path(__file__).resolve().parent
-FEATURES_PATH = ROOT / "artifacts" / "features.json"
 VISION_CACHE_ROOT = ROOT / "cache" / "vision"
-SCORES_OUT_PATH = ROOT / "artifacts" / "scores.json"
+
 
 # ---------------------------------------------------------------------------
 # §1 evaluation protocol constants (REFACTOR_PLAN.md §3)
@@ -766,7 +765,7 @@ def run(category: str | None = None) -> dict:
     # dynamics — growth, momentum, seasonality — and means the same thing
     # whatever you are selling, so it is computed once, category-independent.
     category = config.resolve(category)
-    data = json.loads(FEATURES_PATH.read_text(encoding="utf-8"))
+    data = json.loads((config.artifacts_dir(category) / "features.json").read_text(encoding="utf-8"))
     channels = data["channels"]
     fetched_at = _parse_iso(data["fetched_at"])
 
@@ -894,9 +893,10 @@ def run(category: str | None = None) -> dict:
             for cid in [c["channel_id"] for c in channels]
         },
     }
-    SCORES_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SCORES_OUT_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("wrote %s", SCORES_OUT_PATH)
+    scores_out = config.artifacts_dir(category) / "scores.json"
+    scores_out.parent.mkdir(parents=True, exist_ok=True)
+    scores_out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("wrote %s", scores_out)
     return {
         "method": potential_meta["method"],
         "training_sample_count": n_samples,

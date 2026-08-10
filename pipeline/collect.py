@@ -29,8 +29,12 @@ from pipeline.common.quota import QuotaTracker
 logger = get_logger("collect")
 
 ROOT = Path(__file__).resolve().parent
-RAW_DIR = ROOT / "raw" / "youtube"
-SEED_CACHE_PATH = ROOT / "artifacts" / "seed_channels.json"
+def raw_dir(category: str | None = None) -> Path:
+    return config.raw_dir(category)
+
+
+def seed_cache_path(category: str | None = None) -> Path:
+    return config.artifacts_dir(category) / "seed_channels.json"
 
 MIN_VIDEO_COUNT = 15
 MIN_CHANNEL_AGE_DAYS = 90
@@ -87,7 +91,9 @@ def run(limit_channels: int | None, max_search_calls: int | None, force_search_r
         raise SystemExit("YOUTUBE_API_KEY not set — copy .env.example to .env and fill it in")
 
     seeds = load_seeds(category)
-    logger.info("category=%s, %d seed keywords", category, len(seeds))
+    seed_cache = seed_cache_path(category)
+    raw_out_dir = raw_dir(category)
+    logger.info("category=%s, %d seed keywords, seed cache=%s", category, len(seeds), seed_cache)
     if max_search_calls is None:
         max_search_calls = min(len(seeds), 20)
 
@@ -97,12 +103,12 @@ def run(limit_channels: int | None, max_search_calls: int | None, force_search_r
     quota = QuotaTracker()
     adapter = YouTubeAdapter(api_key=api_key, quota=quota)
 
-    if SEED_CACHE_PATH.exists() and not force_search_refresh:
-        channel_vertical = json.loads(SEED_CACHE_PATH.read_text(encoding="utf-8"))
+    if seed_cache.exists() and not force_search_refresh:
+        channel_vertical = json.loads(seed_cache.read_text(encoding="utf-8"))
         logger.info(
             "=== seed discovery: reusing cached results (%d channels) from %s — "
             "search.list is a one-time cost for the whole project, not per run ===",
-            len(channel_vertical), SEED_CACHE_PATH,
+            len(channel_vertical), seed_cache,
         )
         if extend_discovery_calls:
             _print_quota_budget_plan(quota, extend_discovery_calls, len(channel_vertical))
@@ -117,14 +123,14 @@ def run(limit_channels: int | None, max_search_calls: int | None, force_search_r
                     channel_vertical[cid] = vertical
                     added += 1
             logger.info("extend discovery done: +%d new unique channels (total now %d)", added, len(channel_vertical))
-            SEED_CACHE_PATH.write_text(json.dumps(channel_vertical, ensure_ascii=False, indent=2), encoding="utf-8")
-            logger.info("updated cached seed discovery results at %s", SEED_CACHE_PATH)
+            seed_cache.write_text(json.dumps(channel_vertical, ensure_ascii=False, indent=2), encoding="utf-8")
+            logger.info("updated cached seed discovery results at %s", seed_cache)
     else:
         logger.info("=== seed discovery (%d seeds, max %d search.list calls) ===", len(seeds), max_search_calls)
         channel_vertical = adapter.discover_seed_channels(seeds, max_search_calls)
-        SEED_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        SEED_CACHE_PATH.write_text(json.dumps(channel_vertical, ensure_ascii=False, indent=2), encoding="utf-8")
-        logger.info("cached seed discovery results to %s", SEED_CACHE_PATH)
+        seed_cache.parent.mkdir(parents=True, exist_ok=True)
+        seed_cache.write_text(json.dumps(channel_vertical, ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.info("cached seed discovery results to %s", seed_cache)
     channel_ids = list(channel_vertical.keys())
     logger.info("discovered %d unique candidate channels", len(channel_ids))
 
@@ -175,8 +181,8 @@ def run(limit_channels: int | None, max_search_calls: int | None, force_search_r
         total_videos += len(vids)
         channels_out.append({**snap, "videos": vids})
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RAW_DIR / f"channels_{fetched_at.strftime('%Y%m%dT%H%M%SZ')}.json"
+    raw_out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = raw_out_dir / f"channels_{fetched_at.strftime('%Y%m%dT%H%M%SZ')}.json"
     out_path.write_text(
         json.dumps({"fetched_at": fetched_at_iso, "channels": channels_out}, ensure_ascii=False, indent=2),
         encoding="utf-8",

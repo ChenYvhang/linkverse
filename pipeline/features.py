@@ -23,14 +23,17 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
+from pipeline.common import config
 from pipeline.common.logging import get_logger
 
 logger = get_logger("features")
 
 ROOT = Path(__file__).resolve().parent
-RAW_DIR = ROOT / "raw" / "youtube"
-ARTIFACTS_DIR = ROOT / "artifacts"
-FEATURES_OUT_PATH = ARTIFACTS_DIR / "features.json"
+
+
+def features_path(category: str | None = None) -> Path:
+    return config.artifacts_dir(category) / "features.json"
+
 
 # Age bucket boundaries in days: (name, lower_inclusive, upper_exclusive|None)
 BUCKET_DEFS = [
@@ -68,7 +71,8 @@ def _bucket_index(age_days: int) -> int:
     return len(BUCKET_DEFS) - 1
 
 
-def _latest_raw_file() -> Path:
+def _latest_raw_file(category: str | None = None) -> Path:
+    RAW_DIR = config.raw_dir(category)
     files = sorted(RAW_DIR.glob("channels_*.json"))
     if not files:
         raise SystemExit(f"no raw collection files found in {RAW_DIR} — run collect.py first")
@@ -299,9 +303,10 @@ def apply_season_adjustment(channels: list[dict], season_coefs: dict) -> None:
         )
 
 
-def run() -> dict:
-    raw_path = _latest_raw_file()
-    logger.info("loading %s", raw_path)
+def run(category: str | None = None) -> dict:
+    category = config.resolve(category)
+    raw_path = _latest_raw_file(category)
+    logger.info("category=%s, loading %s", category, raw_path)
     raw = json.loads(raw_path.read_text(encoding="utf-8"))
     fetched_at = _parse_iso(raw["fetched_at"])
     channels = raw["channels"]
@@ -317,13 +322,19 @@ def run() -> dict:
     season_coefs = compute_season_coefs(channels)
     apply_season_adjustment(channels, season_coefs)
 
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = features_path(category)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out = {"fetched_at": raw["fetched_at"], "channels": channels, "season_coefs": season_coefs}
-    FEATURES_OUT_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("wrote %s (%d channels)", FEATURES_OUT_PATH, len(channels))
-    return {"channel_count": len(channels), "season_coefs_verticals": list(season_coefs.keys())}
+    out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("wrote %s (%d channels)", out_path, len(channels))
+    return {"category": category, "channel_count": len(channels),
+            "season_coefs_verticals": list(season_coefs.keys())}
 
 
 if __name__ == "__main__":
-    result = run()
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    config.add_category_argument(parser)
+    args = parser.parse_args()
+    print(json.dumps(run(args.category), ensure_ascii=False, indent=2))

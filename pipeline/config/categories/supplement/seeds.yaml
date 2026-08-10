@@ -5,6 +5,23 @@
 # 覆盖三类达人：力量/增肌（蛋白、肌酸的核心受众）、耐力（电解质）、
 # 营养科普（科学严谨度高，适合成分导向的产品）。
 
+# 垂类标签的英文名 —— 前端只显示英文（YouTube 原生的频道名/视频标题除外），
+# 而 vertical 是中文的内部标签，所以每个品类必须在这里声明对应的英文展示名。
+# 这是固定词表，不需要 LLM 翻译（与 build-linkverse.mjs 里 camera_perspective /
+# narrative_pace 的处理方式一致）。新增垂类时必须同步补一行，否则前端会拿不到
+# 英文名而显示 null。
+verticals:
+  "力量训练": "Strength Training"
+  "健美": "Bodybuilding"
+  "力量举": "Powerlifting"
+  "增肌饮食": "Muscle-Gain Nutrition"
+  "补剂测评": "Supplement Reviews"
+  "营养科普": "Nutrition Science"
+  "耐力跑": "Endurance Running"
+  "铁人三项": "Triathlon"
+  "耐力骑行": "Endurance Cycling"
+  "综合体能": "Functional Fitness"
+
 seeds:
   # 力量 / 增肌
   - keyword: "gym workout routine"

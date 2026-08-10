@@ -35,8 +35,8 @@ logger = get_logger("scripts")
 ROOT = Path(__file__).resolve().parent
 DECISIONS_CACHE_ROOT = ROOT / "cache" / "decisions"
 VISION_CACHE_ROOT = ROOT / "cache" / "vision"
-FEATURES_PATH = ROOT / "artifacts" / "features.json"
-SCORES_PATH = ROOT / "artifacts" / "scores.json"
+
+CONTENT_TRANSLATIONS_CACHE_ROOT = ROOT / "cache" / "content_translations"
 SCRIPTS_CACHE_ROOT = ROOT / "cache" / "scripts"
 FAILURES_PATH = ROOT / "artifacts" / "scripts_failures.json"
 
@@ -81,11 +81,18 @@ def top_video_title(channel: dict) -> str:
     return max(videos, key=lambda v: v.get("view_count") or 0)["title"]
 
 
-def top_feature_breakdown_dim(resonance_entry: dict) -> str:
+def top_feature_breakdown_dim(resonance_entry: dict, category: str | None = None) -> str:
+    """Returns the English label, not the raw config key.
+
+    feature_weights keys are Chinese, and this value is injected into the
+    script prompt — which produced English scripts containing 超广角 /
+    隐形自拍杆 / 防抖. The UI is English-only apart from YouTube's own titles,
+    so the model must never be handed the Chinese key in the first place."""
     breakdown = resonance_entry.get("feature_breakdown") or {}
     if not breakdown:
-        return "（无功能级共振数据）"
-    return max(breakdown.items(), key=lambda kv: kv[1])[0]
+        return "(no feature-level resonance data)"
+    top_key = max(breakdown.items(), key=lambda kv: kv[1])[0]
+    return config.load_feature_labels(category).get(top_key, top_key)
 
 
 def build_prompt(channel: dict, vision: dict, product: dict, resonance_entry: dict,
@@ -95,7 +102,13 @@ def build_prompt(channel: dict, vision: dict, product: dict, resonance_entry: di
         f"  {name}: {value:.2f}" for name, value in zip(dimension_names(category), content_vector)
     )
     video_title = top_video_title(channel)
-    top_dim = top_feature_breakdown_dim(resonance_entry)
+    top_dim = top_feature_breakdown_dim(resonance_entry, category)
+    # The English variants must quote English evidence. Feeding the raw Chinese
+    # evidence to the model is what put 防抖需求高 into en scripts. Fall back to
+    # the original only when translate_content.py hasn't run for this channel —
+    # and say so, rather than silently passing Chinese through.
+    evidence_en = vision.get("evidence_en")
+    evidence_for_prompt = evidence_en or vision.get("evidence")
 
     system = (
         "你是Insta360全球达人营销团队的短视频编导。你要为一个具体的YouTube创作者写"
@@ -116,7 +129,7 @@ def build_prompt(channel: dict, vision: dict, product: dict, resonance_entry: di
 
 【视觉理解证据（GLM-4.6V-Flash 分析该频道真实缩略图/标题得出，8维语义向量）】
 {vector_lines}
-证据原文：{vision.get('evidence')}
+证据原文（英文，脚本中引用时必须用这一版）：{evidence_for_prompt}
 
 请为这个创作者生成4条完整脚本，platform x language 四种组合各一条：
 - platform="tiktok_vertical"：TikTok竖版，15-30秒
@@ -192,6 +205,11 @@ def process_one(api_key: str, channel_id: str, decision: dict, channels_by_id: d
     product_id = decision["recommended_product"]
     product = products_by_id[product_id]
     vision = _load_json(VISION_CACHE_ROOT / category / f"{channel_id}.json")
+    # evidence_en lives in the content_translations cache, not the vision cache;
+    # merge it in so build_prompt can hand the model English evidence.
+    translation_path = CONTENT_TRANSLATIONS_CACHE_ROOT / category / f"{channel_id}.json"
+    if translation_path.exists():
+        vision = {**vision, "evidence_en": _load_json(translation_path).get("evidence_en")}
     resonance_entry = scores_by_id[channel_id]["resonance"][product_id]
 
     messages = build_prompt(channel, vision, product, resonance_entry, category)
@@ -215,8 +233,8 @@ def run(top_n: int, limit: int | None, category: str | None = None):
     if not api_key:
         raise SystemExit("DEEPSEEK_API_KEY not set in .env")
 
-    features_data = _load_json(FEATURES_PATH)
-    scores_data = _load_json(SCORES_PATH)
+    features_data = _load_json(config.artifacts_dir(category) / 'features.json')
+    scores_data = _load_json(config.artifacts_dir(category) / 'scores.json')
     channels_by_id = {c["channel_id"]: c for c in features_data["channels"]}
     scores_by_id = scores_data["scores"]
     products_by_id = load_products(category)

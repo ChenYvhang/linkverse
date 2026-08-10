@@ -17,6 +17,22 @@ competitor_keywords:
   - "诺特兰德"
   - "肌肉科技"
 
+# feature_weights 各卖点的英文展示名 —— 这些中文键会经 scripts.py 注入脚本 prompt
+# 并出现在前端的共振贡献图里，而 UI 只显示英文，所以固定词表在此声明。
+feature_labels:
+  "高蛋白含量": "High Protein Content"
+  "体态可见": "Visible Physique"
+  "冲泡演示": "Mixing Demo"
+  "成分背书": "Ingredient Credibility"
+  "证据充分": "Strong Evidence Base"
+  "进阶受众": "Advanced Audience"
+  "真实长期": "Long-Term Real Use"
+  "体态呈现": "Physique Display"
+  "耐力场景": "Endurance Context"
+  "便携演示": "Portability Demo"
+  "真实使用": "Authentic Use"
+  "入门友好": "Beginner Friendly"
+
 products:
   - id: whey_isolate
     name: "Whey Protein Isolate (prototype)"

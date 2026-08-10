@@ -93,7 +93,10 @@ function buildScripts(creator) {
 function buildVision(vision) {
   if (!vision) return null;
   return {
-    sportTypes: vision.sport_types_en ?? vision.sport_types ?? [],
+    // English only — never fall back to the raw Chinese sport_types. An empty
+    // array reads as "not analyzed yet" in the UI, which is honest; Chinese
+    // text in an English UI is not.
+    sportTypes: vision.sport_types_en ?? [],
     perspective: PERSPECTIVE_EN[vision.camera_perspective] ?? vision.camera_perspective,
     pace: PACE_EN[vision.narrative_pace] ?? vision.narrative_pace,
     stabilization: vision.stabilization_demand,
@@ -131,7 +134,13 @@ function buildCreator(c, productsById) {
     url: c.channel_url,
     subs: c.subscriber_count,
     market: c.market,
-    sport: c.vision?.sport_types_en?.[0] ?? c.vision?.sport_types?.[0] ?? c.vertical,
+    // English only. The old fallback chain ended at c.vertical, the internal
+    // Chinese seed tag, which is why 47 creators rendered as 滑雪 etc: their
+    // vision pass returned an empty sport_types, so both translated and raw
+    // sport types were empty and the chain fell through. vertical_en is the
+    // config-provided English label; if even that is missing we show nothing
+    // rather than leaking Chinese into the UI.
+    sport: c.vision?.sport_types_en?.[0] ?? c.vertical_en ?? null,
     thumb: c.thumbnails?.[0] ?? null,
     P: round1(c.decision.potential_score),
     R: round1(c.decision.resonance_score),
