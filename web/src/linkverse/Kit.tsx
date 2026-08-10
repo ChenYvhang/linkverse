@@ -125,7 +125,7 @@ export default function Kit({
             title={tracked ? "Remove from your pipeline" : "Add to your pipeline"}
             className={`shrink-0 px-2.5 py-1 rounded-full text-xs border transition-colors ${
               tracked
-                ? "bg-accent text-white border-accent"
+                ? "bg-accent-fill text-white border-accent-fill"
                 : "bg-surface text-ink border-line hover:border-accent"
             }`}
           >
@@ -142,7 +142,7 @@ export default function Kit({
             href={buildGmailComposeUrl(creator, script)}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-accent text-white
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-accent-fill text-white
               text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             ✉ Contact {creator.title} →
@@ -217,7 +217,7 @@ export default function Kit({
                 </button>
                 <button onClick={copyBrief}
                   className="text-xs font-medium text-accent border border-accent/30 rounded px-2.5 py-1
-                    hover:bg-accent hover:text-white transition-colors">
+                    hover:bg-accent-fill hover:text-white transition-colors">
                   {copied ? "Copied ✓" : "Copy brief"}
                 </button>
               </div>
@@ -235,7 +235,7 @@ export default function Kit({
                 {creator.scripts.map((s, i) => (
                   <button key={i} onClick={() => setTab(i)}
                     className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
-                      i === tab ? "bg-ink text-white" : "bg-paper text-muted hover:text-ink"
+                      i === tab ? "bg-accent-fill text-white" : "bg-paper text-muted hover:text-ink"
                     }`}>
                     {platformLabel(s.platform)}
                   </button>
@@ -291,8 +291,8 @@ function ListField({ label, items }: { label: string; items: string[] }) {
 function RiskBanner({ risk }: { risk: Creator["risk"] }) {
   if (!risk.flagged) return null;
   return (
-    <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] px-4 py-3">
-      <div className="text-[10px] uppercase tracking-wider text-amber-700 font-semibold">
+    <div className="rounded-lg border border-warning/40 bg-warning/[0.08] px-4 py-3">
+      <div className="text-[10px] uppercase tracking-wider text-warning font-semibold">
         Review before outreach
       </div>
       <p className="text-sm text-ink/80 leading-relaxed mt-1.5">{risk.conclusion}</p>
@@ -300,7 +300,7 @@ function RiskBanner({ risk }: { risk: Creator["risk"] }) {
         <div className="flex flex-wrap gap-1.5 mt-2">
           {risk.keywords.map((k) => (
             <span key={k}
-              className="num text-[11px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 border border-amber-500/30">
+              className="num text-[11px] px-1.5 py-0.5 rounded bg-warning/15 text-warning border border-warning/30">
               {k}
             </span>
           ))}

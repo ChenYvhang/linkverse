@@ -7,6 +7,28 @@
     <title>LinkVerse — find breakout creators before they blow up</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script>
+      // Applied before any CSS paints, so a returning visitor's explicit
+      // choice (or, on a first visit, their OS preference) is correct from
+      // the very first frame — doing this from React (src/linkverse/theme.ts,
+      // same "linkverse.theme" key) would run after the initial paint and
+      // flash the wrong theme first. Kept in sync with theme.ts by hand,
+      // since this has to run standalone, before any bundled module loads.
+      (function () {
+        try {
+          var stored = localStorage.getItem("linkverse.theme");
+          var theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {
+          /* localStorage unavailable — CSS's own prefers-color-scheme fallback still applies */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

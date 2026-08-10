@@ -1,15 +1,24 @@
 @import url("https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap");
 @import "tailwindcss";
 
-/* LinkVerse — a scouting instrument for spotting breakout action-sports
-   creators before they blow up. Light "viewfinder" aesthetic (reads well on a
-   classroom projector), one ultramarine signal hue, mono for every measured
-   number. */
+/* LinkVerse — a scouting instrument for spotting breakout creators before
+   they blow up. Two moods, one instrument: "viewfinder" by day (precise,
+   optical, reads well on a classroom projector) and "night watch" after dark
+   (the same scouting posture, at the hour when a spark is easiest to spot —
+   this app's whole thesis is catching the glimmer before it's a fire).
+   Archivo/Inter/IBM Plex Mono and the ultramarine signal hue carry through
+   both; the one thing that changes hue between them is the priority-tier
+   gradient itself, on purpose — see priority-gradient in Scope.tsx. */
 @theme {
   --font-sans: "Inter", system-ui, sans-serif;
   --font-display: "Archivo", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
+  /* Light "viewfinder" palette — the default, and the light-mode source of
+     truth. Dark mode redefines these same custom properties further down;
+     every utility class (bg-ink, text-accent, border-line, ...) already
+     compiles to var(--color-x), so nothing else in the app needs to change
+     for the override to take effect. */
   --color-ink: #16181d;
   --color-paper: #eceef1;
   --color-surface: #ffffff;
@@ -17,6 +26,39 @@
   --color-muted: #737a85;
   --color-accent: #1f35e0;
   --color-accent-2: #5b6bf0;
+  --color-accent-rgb: 31, 53, 224;
+  --color-accent-2-rgb: 91, 107, 240;
+  /* A solid accent already reads fine under white text in light mode (#1f35e0
+     is dark and saturated enough to serve both as text-on-light AND
+     fill-under-white in one value — verified: 7.94:1 either way). Dark mode's
+     --color-accent gets brightened so it reads as TEXT against a near-black
+     page (verified: 6.18:1), but that same brightness fails as a FILL under
+     white button text (3.13:1, below the 4.5:1 floor) — the two jobs pull the
+     ideal lightness in opposite directions once the background flips.
+     accent-fill exists for exactly the "solid button, white text on top"
+     job; it equals --color-accent here and only diverges in dark mode. */
+  --color-accent-fill: var(--color-accent);
+
+  /* Idle scatter-plot marker — a fourth, deliberately quiet gray that isn't
+     "muted" (used for body text) or "line" (used for hairlines); it needs its
+     own quieter register so 300+ non-priority dots don't compete with text. */
+  --color-dot: #aab0ba;
+
+  /* Second stop of the priority-tier gradient (Scope.tsx's <linearGradient
+     id="priority-gradient">). Blue-to-blue by day; the one place dark mode
+     substitutes --color-ember instead — see the file-level comment above. */
+  --color-priority-to: var(--color-accent-2);
+  --color-ember: #ffb454;
+
+  /* One hue each for "needs a look," "worked," "didn't." Previously ad hoc
+     Tailwind amber-500/emerald-600/red-600 scattered across five files —
+     consolidated into the same token system as everything else so dark mode
+     doesn't have to special-case them file by file. */
+  --color-warning: #b45309;
+  --color-success: #059669;
+  --color-danger: #dc2626;
+
+  --ember-wash-alpha: 0;
 
   --animate-rise: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-slide: slide 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -36,17 +78,79 @@
   }
 }
 
+/* Night watch — dark mode. Same cascade contract Artifacts use: an explicit
+   choice (data-theme) always wins; absent that, prefers-color-scheme decides;
+   the light values above are the fallback either way. The dark values are a
+   full duplicate set rather than a formula-derived one, because "invert
+   lightness" reliably produces muddy, low-contrast UI — every value here was
+   picked for its own legibility on a near-black ground, not computed from the
+   light one. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-ink: #e9eaf2;
+    --color-paper: #0a0c1f;
+    --color-surface: #12142c;
+    --color-line: #262a45;
+    --color-muted: #8d92ab;
+    --color-accent: #7c86ff;
+    --color-accent-2: #a7b2ff;
+    --color-accent-rgb: 124, 134, 255;
+    --color-accent-2-rgb: 167, 178, 255;
+    --color-accent-fill: #3d4ce8;
+    --color-dot: #6b7086;
+    --color-priority-to: var(--color-ember);
+    --color-warning: #fbbf24;
+    --color-success: #34d399;
+    --color-danger: #f87171;
+    --ember-wash-alpha: 0.05;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --color-ink: #e9eaf2;
+  --color-paper: #0a0c1f;
+  --color-surface: #12142c;
+  --color-line: #262a45;
+  --color-muted: #8d92ab;
+  --color-accent: #7c86ff;
+  --color-accent-2: #a7b2ff;
+  --color-accent-rgb: 124, 134, 255;
+  --color-accent-fill: #3d4ce8;
+  --color-dot: #6b7086;
+  --color-priority-to: var(--color-ember);
+  --color-warning: #fbbf24;
+  --color-success: #34d399;
+  --color-danger: #f87171;
+  --ember-wash-alpha: 0.05;
+  color-scheme: dark;
+}
+
 html, body, #root { height: 100%; }
 body {
   background:
-    radial-gradient(1100px 640px at 12% -8%, rgba(31, 53, 224, 0.07), transparent 60%),
-    radial-gradient(900px 520px at 100% 4%, rgba(91, 107, 240, 0.06), transparent 55%),
+    radial-gradient(1100px 640px at 12% -8%, rgba(var(--color-accent-rgb), 0.07), transparent 60%),
+    radial-gradient(900px 520px at 100% 4%, rgba(var(--color-accent-2-rgb), 0.06), transparent 55%),
+    radial-gradient(70% 45% at 50% -10%, rgba(255, 180, 84, var(--ember-wash-alpha)), transparent 60%),
     var(--color-paper);
   background-attachment: fixed;
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+
+/* Crossfade the whole page on a manual theme switch. Scoped to color
+   properties only (not transform/opacity), so it never fights an element's
+   own hover/entrance animation — and prefers-reduced-motion below still wins,
+   since it sets transition: none !important on everything. */
+*, *::before, *::after {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease,
+    fill 0.25s ease, stroke 0.25s ease;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
 
 /* numeric readouts */
 .num { font-family: var(--font-mono); font-feature-settings: "tnum"; }

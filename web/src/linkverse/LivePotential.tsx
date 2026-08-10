@@ -26,7 +26,7 @@ export default function LivePotential({ data, onSelect }: { data: Dataset; onSel
     <section className="max-w-6xl mx-auto px-6 pt-10">
       <div className="flex items-baseline gap-3 mb-1">
         <h2 className="font-display font-bold text-ink text-xl">Live Potential</h2>
-        <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-semibold uppercase tracking-wide">
+        <span className="px-1.5 py-0.5 rounded-full bg-success/10 text-success text-[10px] font-semibold uppercase tracking-wide">
           Beta
         </span>
       </div>
@@ -77,7 +77,7 @@ export default function LivePotential({ data, onSelect }: { data: Dataset; onSel
                     {fmtSubs(m.subsBefore)} → {fmtSubs(m.subsAfter)}
                   </p>
                   <div className="flex items-center justify-between mt-1.5">
-                    <span className="num text-xs font-semibold text-emerald-600">+{m.growthPctPerDay}%/day</span>
+                    <span className="num text-xs font-semibold text-success">+{m.growthPctPerDay}%/day</span>
                     {m.newVideos > 0 && (
                       <span className="num text-[10px] text-muted">+{m.newVideos} videos</span>
                     )}

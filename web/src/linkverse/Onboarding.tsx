@@ -189,7 +189,7 @@ export default function Onboarding({
                 onClick={() => void playScenario(s)}
                 disabled={diagnosing || playingScenario}
                 className="text-[11px] font-semibold text-accent border border-accent/30 rounded-full px-2.5 py-0.5
-                  hover:bg-accent hover:text-white transition-colors disabled:opacity-50"
+                  hover:bg-accent-fill hover:text-white transition-colors disabled:opacity-50"
               >
                 ⚡ {s.buttonLabel}
               </button>
@@ -204,7 +204,7 @@ export default function Onboarding({
                 <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed ${
-                      m.role === "user" ? "bg-accent text-white" : "bg-paper border border-line text-ink"
+                      m.role === "user" ? "bg-accent-fill text-white" : "bg-paper border border-line text-ink"
                     }`}
                   >
                     {m.text}
@@ -236,8 +236,8 @@ export default function Onboarding({
               )}
               <form onSubmit={handleSubmit} className="flex gap-3">
                 <div
-                  className="flex-1 rounded-2xl p-[2px] bg-gradient-to-r from-accent via-[#5b6bf0] to-accent/40
-                    focus-within:shadow-[0_0_0_5px_rgba(31,53,224,0.15)] transition-shadow"
+                  className="flex-1 rounded-2xl p-[2px] bg-gradient-to-r from-accent via-accent-2 to-accent/40
+                    focus-within:shadow-[0_0_0_5px_rgba(var(--color-accent-rgb),0.15)] transition-shadow"
                 >
                   <input
                     ref={inputRef}
@@ -254,7 +254,7 @@ export default function Onboarding({
                 <button
                   type="submit"
                   disabled={diagnosing || playingScenario}
-                  className="px-8 py-5 rounded-2xl bg-gradient-to-r from-accent to-[#5b6bf0] text-white
+                  className="px-8 py-5 rounded-2xl bg-gradient-to-r from-accent to-accent-2 text-white
                     text-base font-semibold hover:opacity-90 transition-opacity shrink-0 disabled:opacity-60"
                 >
                   Send
@@ -269,7 +269,7 @@ export default function Onboarding({
               <button
                 onClick={() => onDiagnosed(diagnosis.categoryId, matchRef.current ?? undefined)}
                 className="text-sm font-medium text-accent border border-accent/30 rounded-lg px-4 py-2
-                  hover:bg-accent hover:text-white transition-colors"
+                  hover:bg-accent-fill hover:text-white transition-colors"
               >
                 {categoryLabel ? `See ${categoryLabel} results →` : "Continue →"}
               </button>
@@ -303,8 +303,8 @@ function ManualCategoryPicker({
   onRetry: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.06] px-4 py-3.5">
-      <div className="text-[10px] uppercase tracking-wider text-amber-700 font-semibold mb-1.5">
+    <div className="rounded-lg border border-warning/40 bg-warning/[0.06] px-4 py-3.5">
+      <div className="text-[10px] uppercase tracking-wider text-warning font-semibold mb-1.5">
         Diagnosis unavailable
       </div>
       <p className="text-sm text-ink/80 leading-relaxed mb-3">

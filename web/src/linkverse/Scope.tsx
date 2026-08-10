@@ -36,9 +36,14 @@ export default function Scope({
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto select-none" role="group"
       aria-label={`Creators plotted by potential and resonance, ${creators.length} points`}>
       <defs>
+        {/* --color-priority-to is --color-accent-2 by day (a cool, all-blue
+            gradient) and --color-ember at night (linkverse.css) — the one
+            hue shift in the whole dark theme, on the one signal that means
+            "this is the spark worth chasing." Everything else in the app
+            keeps the same ultramarine in both modes. */}
         <linearGradient id="priority-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="var(--color-accent)" />
-          <stop offset="100%" stopColor="var(--color-accent-2)" />
+          <stop offset="100%" stopColor="var(--color-priority-to)" />
         </linearGradient>
       </defs>
       {/* priority zone tint (top-right) */}
@@ -97,7 +102,7 @@ export default function Scope({
             }}>
             {sel && <circle cx={cx} cy={cy} r="11" fill="none" stroke="var(--color-accent)" strokeWidth="2" />}
             <circle cx={cx} cy={cy} r={sel ? 6 : pri ? 5 : 3.5}
-              fill={pri ? "url(#priority-gradient)" : "#aab0ba"}
+              fill={pri ? "url(#priority-gradient)" : "var(--color-dot)"}
               opacity={pri ? 0.9 : 0.55}
               stroke={c.hasScript ? "var(--color-surface)" : "none"} strokeWidth={c.hasScript ? 1.5 : 0} />
             {/* Enlarged transparent hit area: a 3.5px dot is far below the

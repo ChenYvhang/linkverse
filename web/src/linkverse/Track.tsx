@@ -20,8 +20,8 @@ const fmtSubs = (n: number) =>
 const STAGE_STYLE: Record<OutcomeStage, string> = {
   tracked: "bg-surface text-ink border-line",
   contacted: "bg-accent/10 text-accent border-accent/30",
-  replied: "bg-accent text-white border-accent",
-  signed: "bg-emerald-600 text-white border-emerald-600",
+  replied: "bg-accent-fill text-white border-accent-fill",
+  signed: "bg-success text-white border-success",
   declined: "bg-paper text-muted border-line",
 };
 
@@ -209,7 +209,7 @@ function StageChip({
       aria-pressed={on}
       title={title}
       className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-        on ? "bg-accent text-white border-accent" : "bg-surface text-ink border-line hover:border-accent/50"
+        on ? "bg-accent-fill text-white border-accent-fill" : "bg-surface text-ink border-line hover:border-accent/50"
       }`}
     >
       {children}

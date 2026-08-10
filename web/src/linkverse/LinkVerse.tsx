@@ -7,6 +7,7 @@ import { CATEGORIES, type CategoryDef, type CategoryId } from "./categories";
 import type { ProductMatch } from "./diagnose";
 import Track from "./Track";
 import LivePotential from "./LivePotential";
+import ThemeToggle from "./ThemeToggle";
 import { setStage, untrack, useTrackedSync } from "./trackStore";
 import { useAuth } from "./auth";
 
@@ -291,6 +292,9 @@ export default function LinkVerse() {
               live or go stale. The as-of coverage figures live in "How this
               was measured" below, next to the backtest sample counts they
               need to be read alongside anyway. */}
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -363,7 +367,7 @@ export default function LinkVerse() {
         <>
           {poolIds.size > 0 && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-surface
-              border border-line rounded-full pl-5 pr-3 py-2.5 shadow-[0_0_0_1px_rgba(31,53,224,0.08),0_12px_32px_-12px_rgba(31,53,224,0.35)] animate-slide">
+              border border-line rounded-full pl-5 pr-3 py-2.5 shadow-[0_0_0_1px_rgba(var(--color-accent-rgb),0.08),0_12px_32px_-12px_rgba(var(--color-accent-rgb),0.35)] animate-slide">
               <span className="text-sm text-ink">
                 <span className="num font-semibold">{poolIds.size}</span> selected
               </span>
@@ -571,7 +575,7 @@ function EvidenceSection({
           a white ring means a full script is ready. Click any dot for its kit.
         </p>
         <FilterBar filters={filters} setFilters={setFilters} allCreators={allCreators} shownCount={shown.length} />
-        <div className="rounded-xl border border-line p-2 shadow-[0_0_0_1px_rgba(31,53,224,0.05),0_16px_40px_-20px_rgba(31,53,224,0.25)]">
+        <div className="rounded-xl border border-line p-2 shadow-[0_0_0_1px_rgba(var(--color-accent-rgb),0.05),0_16px_40px_-20px_rgba(var(--color-accent-rgb),0.25)]">
           <Scope creators={shown} selected={selected} onSelect={onSelect} />
         </div>
         {/* The dot encoding was explained in prose above only; a reader who
@@ -584,7 +588,7 @@ function EvidenceSection({
           </li>
           <li className="flex items-center gap-1.5">
             <svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="3.5"
-              fill="#aab0ba" opacity="0.55" /></svg>
+              fill="var(--color-dot)" opacity="0.55" /></svg>
             Other creators
           </li>
           <li className="flex items-center gap-1.5">
@@ -758,7 +762,7 @@ function PaywallOverlay() {
       {phase === "idle" && (
         <button
           onClick={() => setPhase("processing")}
-          className="text-sm font-semibold text-white bg-accent rounded-lg px-5 py-2 hover:opacity-90 transition-opacity"
+          className="text-sm font-semibold text-white bg-accent-fill rounded-lg px-5 py-2 hover:opacity-90 transition-opacity"
         >
           Unlock
         </button>
@@ -873,7 +877,7 @@ function Methodology({
                       <td className="py-1.5 px-2 text-right text-ink">{t.model_pct}%</td>
                       <td
                         className={`py-1.5 px-2 text-right font-semibold ${
-                          worse ? "text-red-600" : "text-accent"
+                          worse ? "text-danger" : "text-accent"
                         }`}
                       >
                         {t.lift}×
@@ -1032,7 +1036,7 @@ function FilterBar({
           </span>
           Filters
           {active > 0 && (
-            <span className="num px-1.5 py-0.5 rounded-full bg-accent text-white text-[10px]">{active}</span>
+            <span className="num px-1.5 py-0.5 rounded-full bg-accent-fill text-white text-[10px]">{active}</span>
           )}
         </button>
         <span className="num text-xs text-muted ml-auto">{shownCount} creators</span>
@@ -1112,7 +1116,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       aria-pressed={on}
       className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
         on
-          ? "bg-accent text-white border-accent"
+          ? "bg-accent-fill text-white border-accent-fill"
           : "bg-surface text-ink border-line hover:border-accent/50"
       }`}
     >

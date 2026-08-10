@@ -29,7 +29,7 @@ export default function AuthPanel({ user, syncing }: { user: User | null; syncin
   if (user) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted mb-3">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-success" />
         Synced as <span className="text-ink font-medium">{user.email}</span>
         {syncing && <span className="text-muted">· syncing…</span>}
         <button onClick={() => void signOut()} className="ml-auto text-accent hover:underline">
@@ -80,7 +80,7 @@ export default function AuthPanel({ user, syncing }: { user: User | null; syncin
                   type="button"
                   onClick={() => setMode("signin")}
                   className={`px-2 py-0.5 rounded-full text-[11px] border ${
-                    mode === "signin" ? "bg-accent text-white border-accent" : "border-line text-muted"
+                    mode === "signin" ? "bg-accent-fill text-white border-accent-fill" : "border-line text-muted"
                   }`}
                 >
                   Sign in
@@ -89,7 +89,7 @@ export default function AuthPanel({ user, syncing }: { user: User | null; syncin
                   type="button"
                   onClick={() => setMode("signup")}
                   className={`px-2 py-0.5 rounded-full text-[11px] border ${
-                    mode === "signup" ? "bg-accent text-white border-accent" : "border-line text-muted"
+                    mode === "signup" ? "bg-accent-fill text-white border-accent-fill" : "border-line text-muted"
                   }`}
                 >
                   Create account
@@ -114,11 +114,11 @@ export default function AuthPanel({ user, syncing }: { user: User | null; syncin
                 placeholder="Password"
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-line bg-surface text-ink placeholder:text-muted focus:outline-none focus:border-accent"
               />
-              {error && <p className="text-[11px] text-red-600">{error}</p>}
+              {error && <p className="text-[11px] text-danger">{error}</p>}
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full px-2.5 py-1.5 text-xs font-medium rounded-lg bg-accent text-white disabled:opacity-60"
+                className="w-full px-2.5 py-1.5 text-xs font-medium rounded-lg bg-accent-fill text-white disabled:opacity-60"
               >
                 {busy ? "…" : mode === "signin" ? "Sign in" : "Create account"}
               </button>
