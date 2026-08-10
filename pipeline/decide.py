@@ -98,11 +98,18 @@ def build_candidates(features_data: dict, scores_data: dict, products: list[dict
             continue  # not vision-analyzed yet, or no potential score
         best_product_id = max(resonance, key=lambda pid: resonance[pid]["value"])
         best_resonance = resonance[best_product_id]["value"]
-        combined = math.sqrt(max(potential, 0) * max(best_resonance, 0))
+        # potential is an object ({value, value_lo, value_hi, rank_score}) since
+        # the dual-head rework; this used to treat it as a bare number. The bug
+        # stayed hidden because every action_camera card was already cached, so
+        # this path had not run since.
+        potential_value = potential.get("value")
+        if not isinstance(potential_value, (int, float)):
+            continue
+        combined = math.sqrt(max(potential_value, 0) * max(best_resonance, 0))
         candidates.append({
             "channel_id": cid,
             "channel": channels_by_id[cid],
-            "potential": potential,
+            "potential": potential_value,
             "resonance_by_product": resonance,
             "recommended_product_id": best_product_id,
             "recommended_resonance": best_resonance,
