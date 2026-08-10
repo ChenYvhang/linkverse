@@ -283,7 +283,17 @@ def run(limit_channels: int | None, top_n_by_potential: int | None, backend_name
         # prioritize by — spend the slow vision budget on the channels most
         # likely to matter for the final P x R ranking, not collection order.
         scores = json.loads((config.artifacts_dir(category) / 'scores.json').read_text(encoding="utf-8"))["scores"]
-        pending.sort(key=lambda ch: -(scores.get(ch["channel_id"], {}).get("potential") or -1))
+        # scores[cid]["potential"] is an object ({value, value_lo, value_hi,
+        # rank_score}) since the dual-head rework — this used to negate it
+        # directly, which raises TypeError, so --top-n-by-potential could never
+        # have run against a current scores.json. Sort on .value.
+        def _potential_value(ch: dict) -> float:
+            entry = scores.get(ch["channel_id"]) or {}
+            potential = entry.get("potential") or {}
+            value = potential.get("value")
+            return value if isinstance(value, (int, float)) else -1.0
+
+        pending.sort(key=lambda ch: -_potential_value(ch))
         pending = pending[:top_n_by_potential]
         logger.info("scoped to top %d channels by potential_score (P computed without vision data)",
                     top_n_by_potential)
