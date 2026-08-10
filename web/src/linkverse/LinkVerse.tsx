@@ -15,6 +15,30 @@ const READY_CATEGORY = CATEGORIES.find((c) => c.status === "ready") ?? CATEGORIE
 const EMPTY_POOL: Set<string> = new Set();
 const noop = () => {};
 
+// Selection pool persistence. Wrapped in try/catch because localStorage throws
+// rather than no-ops in private mode and under some cookie policies — a browser
+// that won't store the shortlist should still render the app.
+const POOL_KEY = (categoryId: string) => `linkverse.pool.${categoryId}`;
+
+function loadPool(categoryId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(POOL_KEY(categoryId));
+    const ids = raw ? JSON.parse(raw) : null;
+    return Array.isArray(ids) ? new Set(ids.filter((v) => typeof v === "string")) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function savePool(categoryId: string, ids: Set<string>) {
+  try {
+    if (ids.size === 0) localStorage.removeItem(POOL_KEY(categoryId));
+    else localStorage.setItem(POOL_KEY(categoryId), JSON.stringify([...ids]));
+  } catch {
+    /* storage unavailable — the pool simply won't survive a reload */
+  }
+}
+
 export default function LinkVerse() {
   const [categoryId, setCategoryId] = useState<CategoryId>(READY_CATEGORY.id);
   const category = CATEGORIES.find((c) => c.id === categoryId) ?? READY_CATEGORY;
@@ -30,7 +54,10 @@ export default function LinkVerse() {
   );
   const [selected, setSelected] = useState<string | null>(null);
   const [onlyPriority, setOnlyPriority] = useState(false);
-  const [poolIds, setPoolIds] = useState<Set<string>>(new Set());
+  // Survives a reload. The pool is the one piece of real user work in the app —
+  // losing a shortlist to an accidental refresh mid-demo is avoidable.
+  // Keyed by category so switching products doesn't inherit the wrong picks.
+  const [poolIds, setPoolIds] = useState<Set<string>>(() => loadPool(READY_CATEGORY.id));
   // Bumped on reset to remount <Onboarding>, clearing its chat state along
   // with the category it had routed to.
   const [onboardingKey, setOnboardingKey] = useState(0);
@@ -43,8 +70,12 @@ export default function LinkVerse() {
   useEffect(() => {
     setSelected(null);
     setOnlyPriority(false);
-    setPoolIds(new Set());
+    setPoolIds(loadPool(categoryId));
   }, [categoryId]);
+
+  useEffect(() => {
+    savePool(categoryId, poolIds);
+  }, [categoryId, poolIds]);
 
   function handleDiagnosed(id: CategoryId | null) {
     setUnmatched(id === null);
@@ -278,6 +309,18 @@ function ReadyResults({
               <span className="text-ink font-medium">Resonance</span> (do they fit your product?) — then hands you a
               ready outreach kit for each one.
             </p>
+
+            {/* Coverage, stated up front. Ranking only what has been analyzed is
+                fine; letting a viewer assume the list covers every collected
+                channel is not. */}
+            <p className="mt-3 text-xs text-muted max-w-2xl">
+              {data.meta.analyzed_count.toLocaleString()} of{" "}
+              {data.meta.channel_count.toLocaleString()} collected channels have been through vision
+              analysis and scoring — the rest are collected but not yet analyzed, and are not ranked
+              here.
+            </p>
+
+            {data.meta.backtest && <Methodology backtest={data.meta.backtest} />}
           </>
         )}
       </section>
@@ -596,6 +639,86 @@ function Benefit({ title, body }: { title: string; body: string }) {
     <div>
       <div className="font-display font-bold text-ink text-sm">{title}</div>
       <p className="text-sm text-muted mt-1 leading-relaxed">{body}</p>
+    </div>
+  );
+}
+
+// Tiered backtest, collapsed by default. The headline lift is one number on
+// held-out data; this is where it breaks down by subscriber tier — including
+// the tiers where the model loses to the follower-count baseline. Hidden by
+// default because most viewers want the answer, not the statistics; one click
+// away because a claim nobody can inspect is just marketing.
+function Methodology({ backtest }: { backtest: NonNullable<Dataset["meta"]["backtest"]> }) {
+  const [open, setOpen] = useState(false);
+  const tiers = backtest.tiers.filter((t) => t.tier !== "global");
+
+  return (
+    <div className="mt-6 max-w-2xl">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted font-semibold hover:text-ink transition-colors"
+      >
+        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-line text-xs leading-none shrink-0">
+          {open ? "−" : "+"}
+        </span>
+        How this was measured
+      </button>
+
+      {open && (
+        <div className="mt-3 rounded-xl border border-line bg-paper/60 p-4">
+          <p className="text-xs text-muted leading-relaxed mb-3">
+            Top-{backtest.k} hit rate against a follower-count baseline, on channels held out of
+            training. Broken down by subscriber tier, because a single global number hides where the
+            model actually helps.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-muted text-left border-b border-line">
+                  <th className="py-1.5 pr-3 font-medium">Subscriber tier</th>
+                  <th className="py-1.5 px-2 font-medium text-right">Baseline</th>
+                  <th className="py-1.5 px-2 font-medium text-right">LinkVerse</th>
+                  <th className="py-1.5 px-2 font-medium text-right">Lift</th>
+                  <th className="py-1.5 pl-2 font-medium text-right">Sample</th>
+                </tr>
+              </thead>
+              <tbody className="num">
+                {tiers.map((t) => {
+                  const worse = t.lift < 1;
+                  return (
+                    <tr key={t.tier} className="border-b border-line/60 last:border-0">
+                      <td className="py-1.5 pr-3 text-ink">{t.tier}</td>
+                      <td className="py-1.5 px-2 text-right text-muted">{t.baseline_pct}%</td>
+                      <td className="py-1.5 px-2 text-right text-ink">{t.model_pct}%</td>
+                      <td
+                        className={`py-1.5 px-2 text-right font-semibold ${
+                          worse ? "text-red-600" : "text-accent"
+                        }`}
+                      >
+                        {t.lift}×
+                      </td>
+                      <td className="py-1.5 pl-2 text-right text-muted">
+                        {t.candidates}
+                        {t.insufficient ? " ⚠" : ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-[11px] text-muted leading-relaxed">
+            Reported as measured, including the tiers below 1.0× where ranking by follower count
+            beats the model. ⚠ marks a sample too small to conclude from.
+            {backtest.excluded_below_1k !== null && (
+              <> Channels under 1K subscribers ({backtest.excluded_below_1k}) are excluded from tier
+              reporting.</>
+            )}
+            {backtest.brier !== null && <> Calibration Brier score {backtest.brier.toFixed(4)}.</>}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

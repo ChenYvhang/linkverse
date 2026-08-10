@@ -73,6 +73,26 @@ function buildMeta(dataset) {
       lift: round1(pk.lift),
     },
     products: Object.fromEntries(dataset.products.map((p) => [p.id, p.name])),
+    // Per-subscriber-tier results at the primary K, including the ones that
+    // make the model look bad (the 1K-10K tier's lift is below 1, i.e. worse
+    // than ranking by follower count). The headline number alone is an
+    // unverifiable claim; the UI puts these behind a collapsed panel so the
+    // evidence is one click away without cluttering the main view.
+    backtest: {
+      k,
+      tiers: dataset.backtest.tiers.map((t) => ({
+        tier: t.tier,
+        candidates: t.n_candidates,
+        positives: t.n_positive,
+        insufficient: t.insufficient_sample,
+        baseline_pct: Math.round(t.per_k[String(k)].baseline_hit_rate * 100),
+        model_pct: Math.round(t.per_k[String(k)].model_hit_rate * 100),
+        lift: round1(t.per_k[String(k)].lift),
+      })),
+      excluded_below_1k: dataset.backtest.excluded_below_1k_count ?? null,
+      method: dataset.potential_model?.method ?? null,
+      brier: dataset.potential_model?.calibration?.brier_score ?? null,
+    },
   };
 }
 

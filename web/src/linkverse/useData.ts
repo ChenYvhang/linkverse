@@ -63,6 +63,21 @@ export type Dataset = {
     analyzed_count: number;
     finding: { k: number; model_pct: number; baseline_pct: number; lift: number };
     products: Record<string, string>;
+    backtest?: {
+      k: number;
+      tiers: {
+        tier: string;
+        candidates: number;
+        positives: number;
+        insufficient: boolean;
+        baseline_pct: number;
+        model_pct: number;
+        lift: number;
+      }[];
+      excluded_below_1k: number | null;
+      method: string | null;
+      brier: number | null;
+    };
   };
   creators: Creator[];
 };
