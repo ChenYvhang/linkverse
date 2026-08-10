@@ -1,14 +1,20 @@
 # 运动补剂品类种子关键词 —— Stage1 search.list 输入。
 #
-# 尚未执行采集：18 条 × 100 units = 1800 units，执行前确认当日配额余量。
+# 规模依据同防晒品类：要够到 2000+ 个频道需要 45 条量级的词表，18 条不够。
+# 配额：48 条 × 100 = 4800 units，加上每频道约 2 units，2000 个频道合计约
+# 8800 units，在每日 10000 的硬顶内，但一天只够跑一个品类。
 #
-# 覆盖三类达人：力量/增肌（蛋白、肌酸的核心受众）、耐力（电解质）、
-# 营养科普（科学严谨度高，适合成分导向的产品）。
+# 覆盖四类达人：
+#   力量/增肌 —— 蛋白粉与肌酸的核心受众
+#   耐力 —— 电解质的核心受众
+#   营养科普 —— 科学严谨度高，适合成分导向的产品
+#   女性健身/家庭健身 —— 补剂品类实际受众里长期被低估的一块
+#
+# 合规提醒：补剂在多数市场受健康声称监管，Stage5 生成话术时不得出现疗效承诺。
 
 # 垂类标签的英文名 —— 前端只显示英文（YouTube 原生的频道名/视频标题除外），
 # 而 vertical 是中文的内部标签，所以每个品类必须在这里声明对应的英文展示名。
-# 这是固定词表，不需要 LLM 翻译（与 build-linkverse.mjs 里 camera_perspective /
-# narrative_pace 的处理方式一致）。新增垂类时必须同步补一行，否则前端会拿不到
+# 这是固定词表，不需要 LLM 翻译。新增垂类时必须同步补一行，否则前端会拿不到
 # 英文名而显示 null。
 verticals:
   "力量训练": "Strength Training"
@@ -21,46 +27,134 @@ verticals:
   "铁人三项": "Triathlon"
   "耐力骑行": "Endurance Cycling"
   "综合体能": "Functional Fitness"
+  "居家健身": "Home Fitness"
+  "女性健身": "Women's Fitness"
 
 seeds:
-  # 力量 / 增肌
+  # --- 力量训练 ---
   - keyword: "gym workout routine"
     vertical: "力量训练"
-  - keyword: "bodybuilding vlog"
-    vertical: "健美"
-  - keyword: "powerlifting training"
-    vertical: "力量举"
   - keyword: "增肌训练"
     vertical: "力量训练"
   - keyword: "健身房 训练计划"
     vertical: "力量训练"
+  - keyword: "push pull legs split"
+    vertical: "力量训练"
+  - keyword: "hypertrophy training science"
+    vertical: "力量训练"
+  - keyword: "progressive overload training"
+    vertical: "力量训练"
+
+  # --- 健美 ---
+  - keyword: "bodybuilding vlog"
+    vertical: "健美"
   - keyword: "body transformation journey"
     vertical: "健美"
+  - keyword: "contest prep bodybuilding"
+    vertical: "健美"
+  - keyword: "natural bodybuilding"
+    vertical: "健美"
+  - keyword: "physique update posing"
+    vertical: "健美"
 
-  # 营养 / 补剂科普
+  # --- 力量举 ---
+  - keyword: "powerlifting training"
+    vertical: "力量举"
+  - keyword: "squat bench deadlift program"
+    vertical: "力量举"
+  - keyword: "strongman training"
+    vertical: "力量举"
+  - keyword: "olympic weightlifting training"
+    vertical: "力量举"
+
+  # --- 增肌饮食 ---
+  - keyword: "full day of eating bodybuilding"
+    vertical: "增肌饮食"
+  - keyword: "bulking meal prep"
+    vertical: "增肌饮食"
+  - keyword: "high protein meal prep"
+    vertical: "增肌饮食"
+  - keyword: "增肌 饮食"
+    vertical: "增肌饮食"
+  - keyword: "cutting diet vlog"
+    vertical: "增肌饮食"
+
+  # --- 补剂测评 ---
   - keyword: "protein powder review"
     vertical: "补剂测评"
+  - keyword: "补剂 测评"
+    vertical: "补剂测评"
+  - keyword: "pre workout review"
+    vertical: "补剂测评"
+  - keyword: "supplement haul review"
+    vertical: "补剂测评"
+  - keyword: "best protein powder taste test"
+    vertical: "补剂测评"
+
+  # --- 营养科普 ---
   - keyword: "creatine explained"
     vertical: "营养科普"
   - keyword: "sports nutrition science"
     vertical: "营养科普"
-  - keyword: "补剂 测评"
-    vertical: "补剂测评"
   - keyword: "运动营养"
     vertical: "营养科普"
-  - keyword: "full day of eating bodybuilding"
-    vertical: "增肌饮食"
+  - keyword: "evidence based fitness"
+    vertical: "营养科普"
+  - keyword: "protein intake research"
+    vertical: "营养科普"
+  - keyword: "supplement science review"
+    vertical: "营养科普"
 
-  # 耐力
+  # --- 耐力跑 ---
   - keyword: "marathon training vlog"
     vertical: "耐力跑"
-  - keyword: "triathlon training"
-    vertical: "铁人三项"
-  - keyword: "cycling endurance training"
-    vertical: "耐力骑行"
   - keyword: "马拉松 备赛"
     vertical: "耐力跑"
+  - keyword: "half marathon training plan"
+    vertical: "耐力跑"
+  - keyword: "ultra marathon race report"
+    vertical: "耐力跑"
+  - keyword: "running fueling strategy"
+    vertical: "耐力跑"
+
+  # --- 铁人三项 ---
+  - keyword: "triathlon training"
+    vertical: "铁人三项"
+  - keyword: "ironman race vlog"
+    vertical: "铁人三项"
+  - keyword: "swim bike run training week"
+    vertical: "铁人三项"
+
+  # --- 耐力骑行 ---
+  - keyword: "cycling endurance training"
+    vertical: "耐力骑行"
+  - keyword: "indoor cycling zwift training"
+    vertical: "耐力骑行"
+  - keyword: "gravel racing vlog"
+    vertical: "耐力骑行"
+
+  # --- 综合体能 ---
   - keyword: "hyrox training"
     vertical: "综合体能"
   - keyword: "crossfit workout"
     vertical: "综合体能"
+  - keyword: "functional fitness training"
+    vertical: "综合体能"
+  - keyword: "athlete performance training"
+    vertical: "综合体能"
+
+  # --- 居家健身 ---
+  - keyword: "home gym workout"
+    vertical: "居家健身"
+  - keyword: "calisthenics progression"
+    vertical: "居家健身"
+  - keyword: "dumbbell only workout"
+    vertical: "居家健身"
+
+  # --- 女性健身 ---
+  - keyword: "women strength training"
+    vertical: "女性健身"
+  - keyword: "glute training program"
+    vertical: "女性健身"
+  - keyword: "female fitness transformation"
+    vertical: "女性健身"
