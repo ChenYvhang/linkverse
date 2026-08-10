@@ -107,6 +107,12 @@ def load_feature_labels(category: str | None = None) -> dict[str, str]:
     return _load_yaml(category_dir(category) / "products.yaml").get("feature_labels", {})
 
 
+def load_decide_persona(category: str | None = None) -> str:
+    """Stage5 的策略顾问人设。品牌与品类语境随品类切换 —— 之前写死在 decide.py
+    里，任何新品类都会拿到运动相机的话术语境。"""
+    return _load_yaml(category_dir(category) / "products.yaml").get("decide_persona", "")
+
+
 def load_competitor_keywords(category: str | None = None) -> list[str]:
     """Stage5 独家性风险规则用的竞品关键词 —— 同属品类知识（运动相机的竞品是
     GoPro/DJI，防晒霜完全是另一批品牌）。"""

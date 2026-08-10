@@ -32,6 +32,12 @@ feature_labels:
   "防抖": "Stabilization"
   "超广角": "Ultra-Wide"
 
+# Stage5 (decide.py) 的策略顾问人设 —— 决策卡与话术全部用英文生成（UI 除
+# YouTube 原生标题外只显示英文），所以人设本身也是英文。品牌名写在这里而
+# 不是硬编码在 decide.py 里，否则跑防晒品类会生成运动相机语境的话术。
+decide_persona: >-
+  You are a senior creator-marketing strategist for Insta360, a brand of 360-degree and action cameras.
+
 products:
   - id: x5
     name: "Insta360 X5"

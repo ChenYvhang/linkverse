@@ -16,7 +16,7 @@ so sqrt(P*R) stays 0-100 and requires BOTH to be high — an average would let
 one weak axis hide behind a strong one).
 
 Competitor exclusivity: a keyword rule runs FIRST against title/description/
-tags (GoPro/DJI/Osmo/...); the LLM then reviews that rule's finding rather
+tags (keywords come from the category's products.yaml); the LLM then reviews that rule's finding rather
 than independently guessing, and the rule's raw hit is what the frontend
 should redden, per the project's UI note.
 
@@ -112,62 +112,81 @@ def build_candidates(features_data: dict, scores_data: dict, products: list[dict
     return candidates[:top_k]
 
 
-def build_prompt(candidate: dict, product: dict, vision: dict, competitor_check: dict, price_range: dict) -> list[dict]:
+def build_prompt(candidate: dict, product: dict, vision: dict, competitor_check: dict,
+                 price_range: dict, category: str | None = None) -> list[dict]:
+    """Prompt is English, and the brand/category framing comes from config.
+
+    It used to open with a hardcoded Insta360 persona and ask for Chinese
+    output. Both were wrong past the first category: a sunscreen brief would
+    have been written in action-camera language, and every field then needed a
+    separate DeepSeek translation pass before the (English-only) UI could show
+    it. Generating English directly removes that pass — build-linkverse.mjs
+    already falls back from reasoning_en to reasoning, so English output flows
+    through untouched.
+    """
     ch = candidate["channel"]
-    feature_importance_top3 = None  # filled by caller if available
+    dim_labels = config.load_feature_labels(category)
     system = (
-        "你是Insta360全球达人营销团队的资深内容策略顾问。你会拿到一个YouTube创作者的"
-        "真实数据档案（频道信息、算法打分、视觉理解证据），需要输出一份可执行的合作方案。"
-        "所有结论都必须引用给你的具体数字和证据，禁止空泛套话。请以JSON格式输出，"
-        "严格按照要求的字段结构，不要输出JSON之外的任何文字。"
+        f"{config.load_decide_persona(category)} "
+        "You are handed one YouTube creator's real data profile — channel facts, model scores, "
+        "and vision-model evidence — and must return an actionable collaboration brief. "
+        "Every claim must cite the specific numbers or evidence given to you; no generic filler. "
+        "Write everything in English, including creator-facing copy, whatever language the "
+        "channel itself uses. Respond with a single json object in exactly the requested shape, "
+        "and nothing outside it."
     )
-    contributions = candidate["resonance_by_product"][candidate["recommended_product_id"]].get("feature_breakdown", {})
+    raw_contributions = candidate["resonance_by_product"][candidate["recommended_product_id"]].get("feature_breakdown", {})
+    # Feature keys are Chinese in config; send the English labels so they can be
+    # quoted verbatim in the brief.
+    contributions = {dim_labels.get(k, k): round(v, 1) for k, v in raw_contributions.items()}
     user = f"""
-【创作者档案】
-频道名：{ch['title']}
-所在国家/地区：{ch.get('country') or '未知'}
-垂类：{ch.get('vertical')}
-订阅数：{ch.get('subscriber_count')}
-频道年龄（天）：{ch.get('channel_age_days')}
+[CREATOR PROFILE]
+Channel: {ch['title']}
+Country/region: {ch.get('country') or 'unknown'}
+Vertical: {config.load_vertical_labels(category).get(ch.get('vertical'), ch.get('vertical'))}
+Subscribers: {ch.get('subscriber_count')}
+Channel age (days): {ch.get('channel_age_days')}
 
-【算法打分】
-潜力分P（0-100，越高越可能起飞）：{candidate['potential']:.1f}
-共振分R（0-100，与推荐单品的匹配度）：{candidate['recommended_resonance']:.1f}
-推荐单品：{product['name']}（{product['description']}）
-共振功能级贡献：{json.dumps(contributions, ensure_ascii=False)}
+[MODEL SCORES]
+Potential P (0-100, higher = more likely to break out): {candidate['potential']:.1f}
+Resonance R (0-100, fit with the recommended product): {candidate['recommended_resonance']:.1f}
+Recommended product: {product['name']} ({product['description']})
+Feature-level resonance contributions: {json.dumps(contributions, ensure_ascii=False)}
 
-【视觉理解证据（AI分析该频道近期缩略图与标题得出）】
-运动类型：{vision.get('sport_types')}
-镜头视角：{vision.get('camera_perspective')}
-叙事节奏：{vision.get('narrative_pace')}
-判断依据：{vision.get('evidence')}
+[VISION EVIDENCE] (from the model's analysis of this channel's recent thumbnails and titles)
+Content types: {vision.get('sport_types_en') or vision.get('content_topics') or vision.get('sport_types')}
+Camera perspective: {vision.get('camera_perspective')}
+Narrative pace: {vision.get('narrative_pace')}
+Evidence: {vision.get('evidence_en') or vision.get('evidence')}
 
-【规则引擎竞品检测】（已用关键词规则扫描标题/简介/标签，请复核而非重新猜测）
-规则命中：{competitor_check['competitor_flag']}
-命中关键词：{competitor_check['flagged_keywords']}
+[COMPETITOR RULE CHECK] (a keyword rule already scanned titles/description/tags — review its
+finding, do not re-guess it)
+Rule matched: {competitor_check['competitor_flag']}
+Matched keywords: {competitor_check['flagged_keywords']}
 
-【报价参考】（启发式估算，非真实报价）
+[PRICE REFERENCE] (heuristic estimate, not a real rate card)
 {price_range['basis']}
-估算区间：${price_range['min']}-${price_range['max']}
+Estimated range: ${price_range['min']}-${price_range['max']}
 
-请输出如下JSON结构：
+Return this json structure:
 {{
-  "reasoning": "推荐理由，必须引用上面给出的具体分数/证据/数字",
+  "reasoning": "Why this creator, citing the specific scores/evidence/numbers above",
   "creative_variants": [
     {{
-      "variant_name": "变体名称",
-      "script_direction": "具体分镜/叙事方向，须结合该创作者真实内容风格",
-      "subtitle_highlights": ["字幕关键句/卖点话术1", "..."],
-      "target_platform_note": "该变体适配的平台/受众特点",
-      "target_market": "适用本地市场（结合频道所在国家/地区）"
+      "variant_name": "Name of the variant",
+      "script_direction": "Concrete shot/narrative direction, grounded in this creator's actual style",
+      "subtitle_highlights": ["Caption line / selling point 1", "..."],
+      "target_platform_note": "Which platform/audience this variant suits",
+      "target_market": "Local market it fits, based on the channel's country/region"
     }}
   ],
   "risk_review": {{
-    "conclusion": "结合规则命中结果给出复核结论，如规则命中为true必须说明如何处理竞品排他问题"
+    "conclusion": "Your review of the rule's finding. If it matched, say how to handle the exclusivity risk"
   }},
-  "localization_notes": "结合频道所在国家/地区与垂类给出本地化建议"
+  "localization_notes": "Localization advice for this channel's country/region and vertical"
 }}
-creative_variants 需要给出2-3个有实质差异的变体（例如强调不同卖点、不同受众切入角度），不要重复。
+Give 2-3 creative_variants that differ substantively (different selling point, different audience
+angle) — not restatements of each other.
 """
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
@@ -237,7 +256,7 @@ def run(limit: int | None, top_k: int, category: str | None = None):
         price_range = estimate_price_range(cand["channel"].get("subscriber_count"))
 
         try:
-            messages = build_prompt(cand, product, vision, competitor_check, price_range)
+            messages = build_prompt(cand, product, vision, competitor_check, price_range, category)
             llm_out = call_deepseek(api_key, messages)
             decision = {
                 "recommended_product": cand["recommended_product_id"],
