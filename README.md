@@ -7,8 +7,9 @@
 **Live**: https://linkverse-khaki.vercel.app
 
 A GitHub Pages workflow also exists (`.github/workflows/deploy-web.yml`) but hasn't been verified
-with this repo — `web/vite.config.ts`'s Pages base path (`/glimmer-scout/`) predates the
-`glimmer-scout` → `linkverse` rename and would need to match the repo name before Pages is enabled.
+with this repo. Its base path is no longer hardcoded: the workflow passes the repo name to the build
+as `PAGES_BASE`, so a rename can't leave it stale again (it previously still said `/glimmer-scout/`,
+from before the `glimmer-scout` → `linkverse` rename).
 
 ---
 
@@ -29,8 +30,10 @@ rather than tuned or swapped out to look better. See "Honesty statement" below.
 The frontend itself has been rebuilt since the original 4-page build into a simpler **3-screen
 flow — Result → Evidence → Action**: a headline stat up front, a P×R scatter plot with a ranked
 list as evidence, and an outreach kit per creator as the next step. The original 4-page app (with
-a backtest page, a system-status page, and a 7-section creator drawer) is kept for reference in
-`_original_src/` but is no longer built or imported.
+a backtest page, a system-status page, and a 7-section creator drawer) still sits in
+`web/src/{App.tsx,pages,components,lib}` but is no longer built or imported — nothing reaches it
+from `main.tsx`. (A second, identical copy under `_original_src/` was deleted; it duplicated those
+same files verbatim. `git log -- _original_src` recovers it if ever needed.)
 
 ---
 
@@ -142,7 +145,6 @@ Demo/
 │       ├── linkverse.css            # light "viewfinder" theme
 │       ├── linkverse/                # the current app: LinkVerse.tsx / Scope.tsx / Kit.tsx / Onboarding.tsx / useData.ts
 │       └── App.tsx, pages/, components/, lib/  # original 4-page app, kept but unused (not imported by main.tsx)
-├── _original_src/                   # duplicate snapshot of the original app, kept as a reference point
 ├── .github/workflows/deploy-web.yml # GitHub Pages workflow (not currently enabled for this repo)
 ├── PLAN.md                          # original implementation plan (incl. the four-layer architecture decisions)
 └── REFACTOR_PLAN.md                 # prediction-layer/backtest-methodology rework (5 recorded open decisions)
@@ -225,7 +227,7 @@ React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + Recharts, English-only UI, thr
 
 The original 4-page app (bilingual toggle, backtest/system-status pages, drag-select candidate pool
 with a budget cap, side-by-side radar comparison, keyboard shortcuts) is preserved under
-`_original_src/` and `web/src/{App.tsx,pages,components,lib}` for reference but is not built.
+`web/src/{App.tsx,pages,components,lib}` for reference but is not built.
 
 ---
 
@@ -273,7 +275,7 @@ python -m pipeline.build                             # merges everything into we
 cd web
 npm install
 npm run build:data   # regenerates public/linkverse.json from public/dataset.json
-npm run dev           # http://localhost:5173/glimmer-scout/
+npm run dev           # http://localhost:5173/
 npm run build          # tsc -b && vite build
 ```
 
@@ -286,26 +288,31 @@ npm run build          # tsc -b && vite build
 | `YOUTUBE_API_KEY` | Stage1 collection (YouTube Data API v3) | required |
 | `ZHIPU_API_KEY` | Stage3 vision analysis (GLM-4.6V-Flash, Zhipu) | required in cloud mode (`vision.py` also supports a local Ollama backend, where this isn't needed) |
 | `DASHSCOPE_API_KEY` | reserved (Alibaba Cloud DashScope) | unused currently — a Qwen vision model was considered during planning, GLM was chosen instead |
-| `DEEPSEEK_API_KEY` | all DeepSeek calls in Stage5/5b/5c/5d (decision cards, scripts, translation) | required |
-| `GEMINI_API_KEY` | `web/api/diagnose.ts` (Gemini `gemini-flash-latest`) for the onboarding chat's product classification | required for that feature |
+| `DEEPSEEK_API_KEY` | all DeepSeek calls in Stage5/5b/5c/5d (decision cards, scripts, translation) **and** `web/api/diagnose.ts` (the onboarding chat's product classification) | required |
 
 The static frontend itself needs no keys — `dataset.json`/`linkverse.json` are build-time files
 with no secrets in them. The one exception is `web/api/diagnose.ts`, a Vercel serverless function
-that calls Gemini server-side to classify what a visitor describes in the onboarding chat; it
-reads `GEMINI_API_KEY` from `process.env` and never exposes it to the browser.
+that calls DeepSeek server-side to classify what a visitor describes in the onboarding chat; it
+reads `DEEPSEEK_API_KEY` from `process.env` and never exposes it to the browser. That function used
+to call Gemini on a separate `GEMINI_API_KEY`; it was moved onto DeepSeek (same model the pipeline
+pins, `deepseek-v4-flash`) so the project runs on one LLM vendor and one key. Locally it reads the
+key from `web/.env.local` (gitignored) — the same value as the root `.env`, just where `vercel dev`
+looks for it.
 
 ---
 
 ## Deployment
 
 - **Vercel** (live): auto-deploys on every push to `main` via the GitHub integration; base path is
-  `/` (detected via `process.env.VERCEL` in `web/vite.config.ts`). Set `GEMINI_API_KEY` under the
-  Vercel project's Settings → Environment Variables so `web/api/diagnose.ts` can reach Gemini;
-  locally, `vercel env pull web/.env.local` fetches it for `vercel dev` (plain `vite dev` never runs
-  this function at all).
+  `/`, the default in `web/vite.config.ts`. Set `DEEPSEEK_API_KEY` under the Vercel project's
+  Settings → Environment Variables so `web/api/diagnose.ts` can reach DeepSeek — the old
+  `GEMINI_API_KEY` there is now unused and can be removed. Locally, put the same key in
+  `web/.env.local` (or run `vercel env pull web/.env.local`) and use `vercel dev`; plain `vite dev`
+  never runs this function at all.
 - **GitHub Pages**: `.github/workflows/deploy-web.yml` would trigger on a push to `main` touching
-  `web/**`, deploying with a `/glimmer-scout/` base path — not currently enabled for this repo, and
-  that base path would need updating to match this repo's actual name first.
+  `web/**` — not currently enabled for this repo. It builds with `PAGES_BASE=/<repo name>/` (read
+  from `github.event.repository.name`), which `vite.config.ts` uses as the base path; every other
+  build, local dev included, defaults to `/`.
 
 ---
 

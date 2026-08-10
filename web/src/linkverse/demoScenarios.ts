@@ -4,7 +4,8 @@ import type { CategoryId } from "./categories";
 // example" buttons — both sides of the dialogue are pre-written, and the
 // final result is hardcoded rather than calling /api/diagnose. This is
 // deliberate: these buttons exist so a live presentation never depends on
-// Gemini actually being reachable (see the real quota outage this project
+// the LLM behind /api/diagnose actually being reachable (see the real quota
+// outage this project
 // hit mid-build). For seeing the model reason live, just type a real answer
 // instead of clicking one of these.
 export type DemoScenario = {

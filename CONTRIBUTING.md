@@ -67,12 +67,12 @@ git config --global user.email "你的GitHub注册邮箱"
 
 ### 2.2 克隆仓库到你的电脑
 
-先在网页上打开仓库地址 `https://github.com/ChenYvhang/glimmer-scout`，点击绿色的
+先在网页上打开仓库地址 `https://github.com/minjaekimtech/linkverse`，点击绿色的
 **Code** 按钮，复制 HTTPS 链接。然后在终端里，`cd` 到你想放项目的文件夹，输入：
 
 ```bash
-git clone https://github.com/ChenYvhang/glimmer-scout.git
-cd glimmer-scout
+git clone https://github.com/minjaekimtech/linkverse.git
+cd linkverse
 ```
 
 第一次 push 时，GitHub 会要求你登录——不能用密码，要用 **Personal Access Token**（相当于
@@ -126,7 +126,7 @@ git push origin xiaoming/fix-scatter-tooltip
 
 ### 第⑥步：在 GitHub 网页上发起 Pull Request
 
-推送成功后，打开仓库网页 `https://github.com/ChenYvhang/glimmer-scout`，通常会自动弹出
+推送成功后，打开仓库网页 `https://github.com/minjaekimtech/linkverse`，通常会自动弹出
 一个黄色提示条 "Compare & pull request"，点它。填写标题和简单说明（改了什么、为什么改），
 确认 base 分支是 `main`，点击 **Create pull request**。
 
@@ -259,13 +259,13 @@ git config --global user.email "GitHub 가입 이메일"
 
 ### 2.2 저장소를 내 컴퓨터로 클론하기
 
-먼저 웹브라우저에서 저장소 주소 `https://github.com/ChenYvhang/glimmer-scout`를 열고,
+먼저 웹브라우저에서 저장소 주소 `https://github.com/minjaekimtech/linkverse`를 열고,
 초록색 **Code** 버튼을 눌러 HTTPS 링크를 복사하세요. 그다음 터미널에서 프로젝트를
 저장할 폴더로 `cd` 이동한 뒤 다음을 입력합니다:
 
 ```bash
-git clone https://github.com/ChenYvhang/glimmer-scout.git
-cd glimmer-scout
+git clone https://github.com/minjaekimtech/linkverse.git
+cd linkverse
 ```
 
 첫 push를 할 때 GitHub이 로그인을 요구하는데, 비밀번호가 아니라 **Personal Access
@@ -322,7 +322,7 @@ git push origin xiaoming/fix-scatter-tooltip
 
 ### ⑥ GitHub 웹에서 Pull Request 만들기
 
-푸시가 성공하면 저장소 웹페이지 `https://github.com/ChenYvhang/glimmer-scout`를 여세요.
+푸시가 성공하면 저장소 웹페이지 `https://github.com/minjaekimtech/linkverse`를 여세요.
 보통 노란색 "Compare & pull request" 알림이 자동으로 뜨는데, 그걸 클릭하세요. 제목과
 간단한 설명(무엇을 바꿨는지, 왜 바꿨는지)을 작성하고, base 브랜치가 `main`인지 확인한 뒤
 **Create pull request**를 클릭합니다.

@@ -3,16 +3,16 @@ import { CATEGORIES, type CategoryId } from "./categories";
 import { diagnoseCompany, type ConversationTurn, type DiagnosisResult } from "./diagnose";
 import { DEMO_SCENARIOS, type DemoScenario } from "./demoScenarios";
 
-// The very first message is static (no point calling Gemini before the user
-// has said anything). Every turn after that is fully dynamic — Gemini reads
-// the whole conversation, decides what's still missing among company/
+// The very first message is static (no point calling the model before the
+// user has said anything). Every turn after that is fully dynamic — the model
+// reads the whole conversation, decides what's still missing among company/
 // product/country/audience/creator-type, and drives the rest of the chat
 // itself (see web/api/diagnose.ts's system prompt). There is no fixed
 // question script here anymore.
 const OPENING_QUESTION = "What does your company do? Tell us a bit about it.";
 const OPENING_PLACEHOLDER = "e.g. We make action cameras for extreme sports";
 
-// Safety net: never let the chat run forever waiting on Gemini to commit —
+// Safety net: never let the chat run forever waiting on the model to commit —
 // after this many user turns, force a finalize (honest no-match) instead of
 // continuing to ask questions.
 const MAX_TURNS = 9;
@@ -55,7 +55,7 @@ export default function Onboarding({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, diagnosing]);
 
-  // `disabled` drops focus while waiting on Gemini; restore it the moment
+  // `disabled` drops focus while waiting on the model; restore it the moment
   // the input's usable again so the next answer can be typed immediately,
   // no click required.
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function Onboarding({
 
   // Plays out a fully pre-written conversation (both sides) and lands on a
   // hardcoded result — deliberately bypasses /api/diagnose entirely so a
-  // live demo never depends on Gemini being reachable. See demoScenarios.ts.
+  // live demo never depends on the LLM being reachable. See demoScenarios.ts.
   async function playScenario(scenario: DemoScenario) {
     if (diagnosing || diagnosis || manualFallback || playingScenario) return;
     setPlayingScenario(true);

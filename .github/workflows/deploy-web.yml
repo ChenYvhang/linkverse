@@ -31,6 +31,11 @@ jobs:
         working-directory: web
       - run: npm run build
         working-directory: web
+        env:
+          # Pages serves the site under https://<owner>.github.io/<repo>/, so the
+          # bundle needs the repo name as its base path. Derived from the repo
+          # itself rather than hardcoded, so a rename can't break it again.
+          PAGES_BASE: /${{ github.event.repository.name }}/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

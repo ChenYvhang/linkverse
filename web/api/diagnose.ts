@@ -1,9 +1,12 @@
 // Vercel serverless function — only runs on `vercel dev` or a real Vercel
 // deploy (preview/production), never under plain `vite dev`. Talks to
-// Google's Gemini API directly via fetch (no @google/generative-ai
-// dependency) using GEMINI_API_KEY, which must be set as a Vercel project
-// environment variable (see README) — it's never read from or checked into
-// the frontend.
+// DeepSeek's OpenAI-compatible API directly via fetch (no SDK dependency)
+// using DEEPSEEK_API_KEY, which must be set as a Vercel project environment
+// variable (see README) — it's never read from or checked into the frontend.
+//
+// DeepSeek rather than Gemini so the whole project runs on one LLM vendor and
+// one key: Stage5/5b/5c/5d already call DeepSeek (see pipeline/decide.py), and
+// this was the only place that needed a second provider and a second key.
 //
 // Typed by hand against the subset of the Vercel Node runtime we actually
 // use, rather than depending on @vercel/node just for two type names.
@@ -15,16 +18,17 @@ type VercelResponse = {
 
 type ConversationTurn = { role: "assistant" | "user"; text: string };
 
-// "gemini-2.5-flash" returns 404 ("no longer available to new users") for
-// keys created after Google's cutoff — using the "-latest" alias instead so
-// this doesn't silently break again as Google rotates model generations.
-const GEMINI_MODEL = "gemini-flash-latest";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Same model/base URL the pipeline pins (pipeline/decide.py): deepseek-chat
+// and deepseek-reasoner were retired 2026-07-24, deepseek-v4-flash is the
+// current name. Kept in sync with the pipeline deliberately — one vendor,
+// one model generation, one place to update.
+const DEEPSEEK_MODEL = "deepseek-v4-flash";
+const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 
 // Keep in sync with web/src/linkverse/categories.ts. Duplicated (not
 // imported) so this function has no cross-directory source dependency for
 // Vercel's build/file-tracing step to resolve — keeps the failure surface
-// of this function down to "Gemini reachable or not".
+// of this function down to "DeepSeek reachable or not".
 const CATEGORY_LIST: { id: string; label: string }[] = [
   { id: "action_camera", label: "Action Cameras" },
   { id: "sunscreen", label: "Sunscreen" },
@@ -74,13 +78,16 @@ fits).
 - When you're done, respond with exactly:
 {"type":"result","company":"<what the company does, one sentence>","product":"<the product being promoted>","category":"<one of the ids above, or null if none fit>","creatorType":"<the kind of creator/style they want>","confidence":<number between 0 and 1>}
 
-Respond with ONLY a single JSON object matching one of the two shapes above — no prose, no markdown \
+Respond with ONLY a single json object matching one of the two shapes above — no prose, no markdown \
 code fences.`;
+  // ^ the literal lowercase "json" is load-bearing: DeepSeek's
+  // response_format={"type":"json_object"} requires the word to appear in the
+  // prompt, and silently degrades to free-form text if it doesn't.
 }
 
-// Gemini (especially with responseMimeType left unset, and sometimes even
-// with it set) can still wrap JSON in ```json ... ``` fences. Strip them
-// before parsing.
+// json_object mode should already guarantee bare JSON, but keep stripping
+// ```json ... ``` fences defensively — this is the difference between a
+// degraded model response and a broken onboarding chat on stage.
 function stripCodeFences(text: string): string {
   const trimmed = text.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
@@ -103,9 +110,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
-      res.status(500).json({ error: "GEMINI_API_KEY is not configured" });
+      res.status(500).json({ error: "DEEPSEEK_API_KEY is not configured" });
       return;
     }
 
@@ -118,37 +125,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const contents = conversation.map((t) => ({
-      role: t.role === "assistant" ? "model" : "user",
-      parts: [{ text: t.text }],
-    }));
+    const messages = [
+      { role: "system", content: buildSystemPrompt() },
+      ...conversation.map((t) => ({
+        role: t.role === "assistant" ? "assistant" : "user",
+        content: t.text,
+      })),
+    ];
 
-    const upstream = await fetch(GEMINI_URL, {
+    const upstream = await fetch(DEEPSEEK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
-        contents,
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.3,
-        },
+        model: DEEPSEEK_MODEL,
+        messages,
+        response_format: { type: "json_object" },
+        temperature: 0.3,
       }),
     });
 
     if (!upstream.ok) {
       const text = await upstream.text();
-      res.status(502).json({ error: `Gemini API error (${upstream.status}): ${text.slice(0, 300)}` });
+      res.status(502).json({ error: `DeepSeek API error (${upstream.status}): ${text.slice(0, 300)}` });
       return;
     }
 
     const payload = await upstream.json();
-    const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = payload?.choices?.[0]?.message?.content;
     if (typeof text !== "string") {
-      res.status(502).json({ error: "Gemini response had no content" });
+      res.status(502).json({ error: "DeepSeek response had no content" });
       return;
     }
 
@@ -156,12 +164,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       parsed = JSON.parse(stripCodeFences(text));
     } catch {
-      res.status(502).json({ error: "Gemini response was not valid JSON" });
+      res.status(502).json({ error: "DeepSeek response was not valid JSON" });
       return;
     }
 
     if (!isValidShape(parsed)) {
-      res.status(502).json({ error: "Gemini response had an unexpected shape" });
+      res.status(502).json({ error: "DeepSeek response had an unexpected shape" });
       return;
     }
 
