@@ -1,8 +1,16 @@
 """YouTube Data API v3 quota tracker.
 
 Single execution point for the project's quota red line: every API call must be
-charged here before it counts as "spent". Charges persist to disk keyed by UTC
-date so a crashed/restarted run does not blow past the daily 10000 unit cap.
+charged here before it counts as "spent". Charges persist to disk keyed by the
+quota day so a crashed/restarted run does not blow past the daily 10000 unit
+cap.
+
+The quota day is Google's, not ours: YouTube Data API quota resets at midnight
+US Pacific time. This used to key on the UTC date, which is 7-8 hours ahead of
+Pacific, so the two never lined up — two runs that Google bills to different
+quota days would be summed into one here, and the guard would refuse work that
+was actually within budget (observed: a run aborted at "10001 > 10000" when the
+older 7890 units belonged to the previous Pacific day).
 
 Budget table (see PLAN.md section 2):
   search.list        100 units/call, hard cap 20 calls  (seed discovery only)
@@ -12,8 +20,9 @@ Budget table (see PLAN.md section 2):
 """
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from pipeline.common.logging import get_logger
 
@@ -45,8 +54,14 @@ class QuotaExceededError(RuntimeError):
     pass
 
 
+# Google resets YouTube Data API quota at midnight Pacific. ZoneInfo handles the
+# PST/PDT switch, which a fixed UTC offset would get wrong for half the year.
+QUOTA_RESET_TZ = ZoneInfo("America/Los_Angeles")
+
+
 def _today() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    """The current YouTube quota day, in Google's timezone — not the machine's."""
+    return datetime.now(QUOTA_RESET_TZ).strftime("%Y-%m-%d")
 
 
 @dataclass
