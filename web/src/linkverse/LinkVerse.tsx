@@ -264,6 +264,7 @@ export default function LinkVerse() {
             <LockedPreview mockData={data} variant="preparing" category={category} onBack={handleReset} />
           ) : (
             <ReadyResults
+              match={match}
               data={data}
               selected={selected}
               setSelected={setSelected}
@@ -332,6 +333,7 @@ function ReadyResults({
   shown,
   top,
   togglePool,
+  match,
 }: {
   data: Dataset;
   selected: string | null;
@@ -342,12 +344,15 @@ function ReadyResults({
   shown: Creator[];
   top: Creator[];
   togglePool: (id: string) => void;
+  match: ProductMatch | null;
 }) {
   const f = data.meta.finding;
   const [statsOpen, setStatsOpen] = useState(false);
 
   return (
     <>
+      {match && <MatchDrawer match={match} dimensions={data.meta.dimensions} />}
+
       {/* 1 · PROOF */}
       <section className="max-w-6xl mx-auto px-6 pt-4 pb-14">
         <button
@@ -794,6 +799,71 @@ function Methodology({ backtest }: { backtest: NonNullable<Dataset["meta"]["back
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// Tells the visitor their ranking is theirs, not the demo's — as a drawer, so
+// the claim is one line until they want the evidence behind it. Expanded, it
+// shows where the model placed their product on each axis, which is the whole
+// basis of the re-ranking; without it "ranked for you" is unfalsifiable.
+function MatchDrawer({
+  match,
+  dimensions,
+}: {
+  match: ProductMatch;
+  dimensions: { key: string; name: string; description: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="max-w-6xl mx-auto px-6 pt-8">
+      <div className="rounded-xl border border-accent/30 bg-accent/[0.04]">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="w-full flex items-center gap-3 px-4 py-3 text-left"
+        >
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-accent/40 text-xs leading-none shrink-0 text-accent">
+            {open ? "−" : "+"}
+          </span>
+          <span className="text-sm text-ink min-w-0 flex-1">
+            Ranked for <span className="font-semibold">{match.product}</span> — scored against your
+            product, not the demo's.
+          </span>
+        </button>
+
+        {open && (
+          <div className="px-4 pb-4 border-t border-accent/20 pt-3">
+            <p className="text-xs text-muted leading-relaxed mb-3">
+              Your product placed on the axes these creators were scored on. Resonance is the
+              similarity between this profile and each creator's, measured relative to the average
+              creator — so a high score means they are unusually strong exactly where your product
+              needs it.
+            </p>
+            <ul className="space-y-1.5">
+              {dimensions.map((d, i) => {
+                const v = match.vector[i] ?? 0;
+                return (
+                  <li key={d.key} className="flex items-center gap-3 text-xs">
+                    <span className="w-44 shrink-0 text-ink truncate" title={d.description}>
+                      {d.name}
+                    </span>
+                    <span className="flex-1 h-1.5 rounded-full bg-line/70 overflow-hidden">
+                      <span
+                        className="block h-full rounded-full bg-accent"
+                        style={{ width: `${Math.round(v * 100)}%` }}
+                      />
+                    </span>
+                    <span className="num w-9 text-right text-muted">{v.toFixed(2)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
