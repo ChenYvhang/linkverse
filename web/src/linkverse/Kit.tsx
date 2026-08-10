@@ -122,7 +122,7 @@ export default function Kit({
           <button
             onClick={onTrack}
             aria-pressed={!!tracked}
-            title={tracked ? "Already on your pipeline" : "Add to your pipeline"}
+            title={tracked ? "Remove from your pipeline" : "Add to your pipeline"}
             className={`shrink-0 px-2.5 py-1 rounded-full text-xs border transition-colors ${
               tracked
                 ? "bg-accent text-white border-accent"

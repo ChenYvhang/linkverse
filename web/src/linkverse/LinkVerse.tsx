@@ -7,7 +7,7 @@ import { CATEGORIES, type CategoryDef, type CategoryId } from "./categories";
 import type { ProductMatch } from "./diagnose";
 import Track from "./Track";
 import LivePotential from "./LivePotential";
-import { setStage, useTrackedSync } from "./trackStore";
+import { setStage, untrack, useTrackedSync } from "./trackStore";
 import { useAuth } from "./auth";
 
 const fmtSubs = (n: number) =>
@@ -191,7 +191,14 @@ export default function LinkVerse() {
   // exist here at all — nothing else in the app needs one.
   const { user } = useAuth();
   const { tracked, setTracked, syncing } = useTrackedSync(categoryId, user?.id ?? null);
-  const trackCreator = (id: string) => setTracked(setStage(tracked, id, tracked[id]?.stage ?? "tracked"));
+  // Toggle, not "always add": this used to call setStage(tracked, id,
+  // tracked[id]?.stage ?? "tracked") unconditionally, which — for a creator
+  // already tracked — re-set the SAME stage it already had, so clicking the
+  // Kit's "Tracked" button a second time silently did nothing. There was no
+  // way to untrack from the kit at all, only from the pipeline list's Remove
+  // button.
+  const trackCreator = (id: string) =>
+    setTracked(tracked[id] ? untrack(tracked, id) : setStage(tracked, id, "tracked"));
 
   useEffect(() => {
     setSelected(null);
@@ -1071,12 +1078,17 @@ function FilterBar({
 }
 
 function Facet({ label, children }: { label: string; children: React.ReactNode }) {
+  // Label sits on its own line above the chips rather than sharing a row with
+  // them: a fixed-width label column fighting a long chip (e.g. "North
+  // America / Europe", "Hide competitor mentions") for space on the same line
+  // is what crowded the text together. Decoupling them means a chip's wrap
+  // point depends only on its own text and the container width.
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[11px] uppercase tracking-wider text-muted font-semibold w-24 shrink-0">
+    <div>
+      <span className="block text-[11px] uppercase tracking-wider text-muted font-semibold mb-1">
         {label}
       </span>
-      {children}
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
     </div>
   );
 }
