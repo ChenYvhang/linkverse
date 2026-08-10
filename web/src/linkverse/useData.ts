@@ -86,9 +86,39 @@ export type Dataset = {
       method: string | null;
       brier: number | null;
     };
+    /** Real subscriber growth between the two most recent collection
+     *  snapshots — distinct from the static P score. Unavailable until a
+     *  category has been collected twice with a real gap between runs. */
+    livePotential: LivePotential;
   };
   creators: Creator[];
 };
+
+export type LiveMover = {
+  id: string;
+  title: string;
+  thumb: string | null;
+  url: string;
+  subsBefore: number;
+  subsAfter: number;
+  growthPctPerDay: number;
+  newVideos: number;
+  /** False means this channel hasn't been vision-analyzed / decided on yet —
+   *  it's a real mover the rest of the pipeline hasn't caught up to. Render
+   *  it, but don't link into a kit that doesn't exist. */
+  hasDecision: boolean;
+};
+
+export type LivePotential =
+  | { available: false; reason: string; snapshotCount: number }
+  | {
+      available: true;
+      fromDate: string;
+      toDate: string;
+      elapsedDays: number;
+      scoredCount: number;
+      movers: LiveMover[];
+    };
 
 export function useData(dataPath: string) {
   const [data, setData] = useState<Dataset | null>(null);

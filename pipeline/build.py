@@ -18,7 +18,7 @@ pipeline/config/products.yaml. Writes data/dataset.json.
 import json
 from pathlib import Path
 
-from pipeline.common import config
+from pipeline.common import config, momentum
 from pipeline.common.logging import get_logger
 from pipeline.common.variants import normalize_variant
 from pipeline.score import SUBSCRIBER_TIERS, TOP_K_LIST
@@ -252,6 +252,43 @@ def build_creator(
     }
 
 
+def build_momentum_block(category: str, channels_by_id: dict, decisions_cache: dict) -> dict:
+    """"Live Potential": real subscriber growth between the two most recent
+    collection snapshots, distinct from the static P score (which is trained
+    once, offline, on historical acceleration). See pipeline/common/momentum.py
+    for why this only scores channels both snapshots observed, and reports a
+    rate instead of a raw count.
+
+    Display fields (title, thumbnail, channel_url) come from features.json —
+    the current dataset — not from the older snapshot, so a mover always shows
+    today's channel info even though the growth number spans two points in
+    time. A mover with no decision card is still shown (this is explicitly
+    meant to catch movers before the rest of the pipeline has caught up to
+    them) but flagged so the frontend can render it as not yet actionable
+    rather than linking into a kit that doesn't exist.
+    """
+    m = momentum.latest_momentum(category)
+    if not m["available"]:
+        return m
+
+    movers = []
+    for row in m["movers"]:
+        ch = channels_by_id.get(row["channel_id"])
+        if ch is None:
+            continue  # dropped by the video-count/age filters since the older snapshot
+        recent_videos = sorted(ch["videos"], key=lambda v: v["published_at"], reverse=True)
+        thumb = next((v["thumbnail_url"] for v in recent_videos if v.get("thumbnail_url")), None)
+        movers.append({
+            **row,
+            "title": ch["title"],
+            "channel_url": f"https://www.youtube.com/channel/{ch['channel_id']}",
+            "thumbnail_url": thumb,
+            "has_decision": row["channel_id"] in decisions_cache,
+        })
+
+    return {**m, "movers": movers}
+
+
 def run(category: str | None = None) -> dict:
     category = config.resolve(category)
     artifacts = config.artifacts_dir(category)
@@ -290,6 +327,9 @@ def run(category: str | None = None) -> dict:
     total_videos = sum(len(c["videos"]) for c in channels)
     vision_covered = sum(1 for c in creators if c["vision"] is not None)
     decision_covered = sum(1 for c in creators if c["decision"] is not None)
+
+    channels_by_id = {ch["channel_id"]: ch for ch in channels}
+    momentum_block = build_momentum_block(category, channels_by_id, decisions_cache)
 
     dataset = {
         "meta": {
@@ -354,6 +394,11 @@ def run(category: str | None = None) -> dict:
         # roche-posay"), so the trim step normalises on the way out and old and
         # new cards render the same.
         "competitor_labels": config.load_competitor_labels(category),
+        # "Live Potential": real growth between the two most recent collection
+        # snapshots. available: false (with a reason) until a category has
+        # been collected twice with enough of a gap between runs — see
+        # build_momentum_block above and pipeline/common/momentum.py.
+        "momentum": momentum_block,
         "products": products,
         "creators": creators,
     }

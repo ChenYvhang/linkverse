@@ -6,6 +6,7 @@ import Onboarding from "./Onboarding";
 import { CATEGORIES, type CategoryDef, type CategoryId } from "./categories";
 import type { ProductMatch } from "./diagnose";
 import Track from "./Track";
+import LivePotential from "./LivePotential";
 import { setStage, useTrackedSync } from "./trackStore";
 import { useAuth } from "./auth";
 
@@ -478,6 +479,8 @@ function ReadyResults({
           </>
         )}
       </section>
+
+      <LivePotential data={data} onSelect={setSelected} />
 
       {/* 2 · EVIDENCE (scope + top picks) */}
       <section id="evidence" className="border-t border-line bg-surface">

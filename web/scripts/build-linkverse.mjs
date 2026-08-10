@@ -58,20 +58,26 @@ const round1 = (n) => Math.round(n * 10) / 10;
 const round2 = (n) => (n === null || n === undefined ? null : Math.round(n * 100) / 100);
 
 function buildMeta(dataset) {
-  const global = dataset.backtest.tiers.find((t) => t.tier === "global");
-  const k = dataset.backtest.primary_k;
-  const pk = global.per_k[String(k)];
+  // dataset.backtest is null until score.py has actually run for this
+  // category — true today for supplement (collected + featured, not yet
+  // scored). Guarded rather than assumed, so building a not-yet-scored
+  // category's trimmed dataset reports honest zeros instead of crashing.
+  const global = dataset.backtest?.tiers?.find((t) => t.tier === "global");
+  const k = dataset.backtest?.primary_k ?? 0;
+  const pk = global?.per_k?.[String(k)];
   const analyzedCount = dataset.creators.filter((c) => c.decision !== null).length;
   return {
     name: "LinkVerse",
     channel_count: dataset.creators.length,
     analyzed_count: analyzedCount,
-    finding: {
-      k,
-      model_pct: Math.round(pk.model_hit_rate * 100),
-      baseline_pct: Math.round(pk.baseline_hit_rate * 100),
-      lift: round1(pk.lift),
-    },
+    finding: pk
+      ? {
+          k,
+          model_pct: Math.round(pk.model_hit_rate * 100),
+          baseline_pct: Math.round(pk.baseline_hit_rate * 100),
+          lift: round1(pk.lift),
+        }
+      : { k, model_pct: 0, baseline_pct: 0, lift: 0 },
     products: Object.fromEntries(dataset.products.map((p) => [p.id, p.name])),
     // Axis definitions for this category, in content_vector order. Sent to
     // /api/diagnose so the model can place a visitor's product on the same
@@ -85,7 +91,7 @@ function buildMeta(dataset) {
     // than ranking by follower count). The headline number alone is an
     // unverifiable claim; the UI puts these behind a collapsed panel so the
     // evidence is one click away without cluttering the main view.
-    backtest: {
+    backtest: dataset.backtest && {
       k,
       tiers: dataset.backtest.tiers.map((t) => ({
         tier: t.tier,
@@ -100,6 +106,41 @@ function buildMeta(dataset) {
       method: dataset.potential_model?.method ?? null,
       brier: dataset.potential_model?.calibration?.brier_score ?? null,
     },
+    livePotential: buildLivePotential(dataset.momentum),
+  };
+}
+
+// "Live Potential": real subscriber growth between the two most recent
+// collection snapshots (pipeline/common/momentum.py), distinct from the
+// static P score. `available: false` (with a reason) until a category has
+// been collected twice with a real gap between runs — sunscreen and
+// supplement are both in that state today, with exactly one snapshot each.
+function buildLivePotential(momentum) {
+  if (!momentum || !momentum.available) {
+    return { available: false, reason: momentum?.reason ?? "no_data", snapshotCount: momentum?.snapshot_count ?? 0 };
+  }
+  return {
+    available: true,
+    fromDate: momentum.fetched_at_old.slice(0, 10),
+    toDate: momentum.fetched_at_new.slice(0, 10),
+    elapsedDays: round1(momentum.elapsed_days),
+    scoredCount: momentum.scored_count,
+    movers: momentum.movers.map((m) => ({
+      id: m.channel_id,
+      title: m.title,
+      thumb: m.thumbnail_url ?? null,
+      url: m.channel_url,
+      subsBefore: m.subs_before,
+      subsAfter: m.subs_after,
+      growthPctPerDay: round2(m.sub_delta_pct_per_day),
+      newVideos: m.new_videos ?? 0,
+      // Whether this channel exists in `creators` below (has a decision card)
+      // and can be clicked into a kit. A mover can legitimately be "not yet
+      // analyzed" — that's the point of catching movers early — and the UI
+      // needs to render that honestly rather than link into a kit that
+      // doesn't exist.
+      hasDecision: m.has_decision,
+    })),
   };
 }
 
