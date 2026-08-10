@@ -30,10 +30,10 @@ rather than tuned or swapped out to look better. See "Honesty statement" below.
 The frontend itself has been rebuilt since the original 4-page build into a simpler **3-screen
 flow — Result → Evidence → Action**: a headline stat up front, a P×R scatter plot with a ranked
 list as evidence, and an outreach kit per creator as the next step. The original 4-page app (with
-a backtest page, a system-status page, and a 7-section creator drawer) still sits in
-`web/src/{App.tsx,pages,components,lib}` but is no longer built or imported — nothing reaches it
-from `main.tsx`. (A second, identical copy under `_original_src/` was deleted; it duplicated those
-same files verbatim. `git log -- _original_src` recovers it if ever needed.)
+a backtest page, a system-status page, and a 7-section creator drawer) has been removed from the
+working tree — it was unreachable from `main.tsx`, and existed twice over (`web/src/{App.tsx,pages,
+components,lib}` plus a verbatim copy in `_original_src/`). Git history still has all of it:
+`git log --diff-filter=D -- _original_src web/src/pages`.
 
 ---
 
@@ -78,7 +78,7 @@ flowchart LR
         G[Creative variants + vision evidence + decision card, English translation]
     end
     subgraph Stage6["Stage6 build.py"]
-        H[web/public/dataset.json]
+        H[data/dataset.json]
     end
     subgraph Trim["web/scripts/build-linkverse.mjs"]
         I[web/public/linkverse.json]
@@ -95,7 +95,7 @@ flowchart LR
 
 Every stage writes an independently inspectable intermediate file (`raw/` → `artifacts/features.json`
 → `cache/vision/` → `artifacts/scores.json` → `cache/decisions/` → `cache/scripts/` /
-`cache/*_translations/` → `web/public/dataset.json`). Any step can be reproduced from disk without
+`cache/*_translations/` → `data/dataset.json`). Any step can be reproduced from disk without
 rerunning everything upstream. `web/scripts/build-linkverse.mjs` is a separate, later addition: it
 trims `dataset.json` (62MB, 2083 creators, mostly Chinese) down to `web/public/linkverse.json`
 (~1.7MB, the 351 creators with a generated decision, English-only) — the only file the frontend
@@ -117,7 +117,7 @@ Demo/
 │   ├── scripts.py                 # Stage5b full bilingual scripts for the Top-20 (4 variants/creator)
 │   ├── translate_variants.py      # Stage5c English translation of creative_variants for non-Top-20 creators
 │   ├── translate_content.py       # Stage5d English translation of vision evidence + decision free text
-│   ├── build.py                   # Stage6 merges every stage's output -> web/public/dataset.json
+│   ├── build.py                   # Stage6 merges every stage's output -> data/dataset.json
 │   ├── validate.py                # REFACTOR_PLAN.md gate: age bias / seasonal leakage / GroupKFold, etc.
 │   ├── adapters/
 │   │   ├── platform_base.py       # PlatformAdapter abstract base (YouTube is the only implementation)
@@ -134,17 +134,20 @@ Demo/
 │   ├── raw/youtube/                # raw collected JSON (written per fetched_at, never overwritten)
 │   ├── cache/                      # per-channel_id cached intermediates (vision/decisions/scripts/*_translations)
 │   └── artifacts/                  # features.json / scores.json / quota_log.json / validate_report.json
+├── data/dataset.json                # full Stage6 output; gitignored, and deliberately NOT under
+│                                    # web/public/ — nothing fetches it at runtime, so keeping it
+│                                    # out of that directory keeps 60MB+ out of the deploy bundle
 ├── reports/                        # REFACTOR_PLAN.md backtest reports (backtest.md + charts)
 ├── web/                            # React + TypeScript + Vite frontend
-│   ├── scripts/build-linkverse.mjs # dataset.json -> linkverse.json trim/translate step
+│   ├── api/diagnose.ts             # Vercel serverless function: DeepSeek-backed onboarding chat
+│   ├── scripts/build-linkverse.mjs # data/dataset.json -> public/linkverse.json trim/translate step
 │   ├── public/
-│   │   ├── dataset.json            # full pipeline output (not fetched by the app; source for the trim script)
-│   │   └── linkverse.json          # trimmed, English-only dataset the app actually fetches
+│   │   ├── linkverse.json          # trimmed, English-only dataset the app actually fetches
+│   │   └── linkverse/*.json        # per-category datasets (sunscreen/supplement: placeholders)
 │   └── src/
 │       ├── main.tsx                 # entry point — renders LinkVerse directly, no router
 │       ├── linkverse.css            # light "viewfinder" theme
-│       ├── linkverse/                # the current app: LinkVerse.tsx / Scope.tsx / Kit.tsx / Onboarding.tsx / useData.ts
-│       └── App.tsx, pages/, components/, lib/  # original 4-page app, kept but unused (not imported by main.tsx)
+│       └── linkverse/                # the whole app: LinkVerse.tsx / Scope.tsx / Kit.tsx / Onboarding.tsx / useData.ts
 ├── .github/workflows/deploy-web.yml # GitHub Pages workflow (not currently enabled for this repo)
 ├── PLAN.md                          # original implementation plan (incl. the four-layer architecture decisions)
 └── REFACTOR_PLAN.md                 # prediction-layer/backtest-methodology rework (5 recorded open decisions)
@@ -164,7 +167,7 @@ Demo/
 | 5b | `scripts.py` | Full scripts for the Top-20 creators by combined score: TikTok vertical / YouTube horizontal × Chinese/English, each with hook/storyboard/voiceover/captions/CTA | `cache/scripts/{channel_id}_{product_id}_{platform}_{lang}.json` |
 | 5c | `translate_variants.py` | Translates `creative_variants` for creators outside the Top-20 (who only got a lightweight decision card) | `cache/variant_translations/{channel_id}.json` |
 | 5d | `translate_content.py` | Translates vision evidence (`sport_types`/`evidence`) and decision free text (`reasoning`/`localization_notes`/`risk_review.conclusion`/`price_range.basis`) — per-creator LLM output, not a fixed vocabulary, so it needs a real translation; built-in validation retries any output that still contains CJK characters | `cache/content_translations/{channel_id}.json` |
-| 6 | `build.py` | Merges every cache + feature + score above into the frontend's data source | `web/public/dataset.json` |
+| 6 | `build.py` | Merges every cache + feature + score above into the frontend's data source | `data/dataset.json` |
 | — | `validate.py` | REFACTOR_PLAN.md gate script: age-bias before/after, seasonal-leakage fix comparison, GroupKFold-vs-KFold pseudo-duplicate detection, label-tightening comparison, calibration curve/Brier/conformal coverage, tiered backtest table — any hard gate failing exits non-zero | `reports/*.md`, `reports/*.png` |
 
 Every outbound request (YouTube / GLM / DeepSeek) goes through `pipeline/common/http.py`: timeouts
@@ -176,7 +179,7 @@ written as fabricated data.
 
 ## Current dataset snapshot
 
-These numbers come from `web/public/dataset.json`'s `meta` and can be refreshed anytime by
+These numbers come from `data/dataset.json`'s `meta` and can be refreshed anytime by
 rerunning `python -m pipeline.build`:
 
 | Metric | Value |
@@ -226,8 +229,11 @@ React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + Recharts, English-only UI, thr
   the ready-to-send script with copy-to-clipboard and export-to-.txt.
 
 The original 4-page app (bilingual toggle, backtest/system-status pages, drag-select candidate pool
-with a budget cap, side-by-side radar comparison, keyboard shortcuts) is preserved under
-`web/src/{App.tsx,pages,components,lib}` for reference but is not built.
+with a budget cap, side-by-side radar comparison, keyboard shortcuts) has been deleted rather than
+kept as unreachable source — recover it from git history if a feature there is worth porting.
+
+The production bundle is split in two: the app itself (~219 kB) and a `charts` chunk (~379 kB,
+Recharts + d3), which changes far less often and stays cached across normal UI edits.
 
 ---
 
@@ -266,7 +272,7 @@ python -m pipeline.decide --limit 3
 python -m pipeline.scripts --top-n 20
 python -m pipeline.translate_variants --limit 3
 python -m pipeline.translate_content --limit 3
-python -m pipeline.build                             # merges everything into web/public/dataset.json
+python -m pipeline.build                             # merges everything into data/dataset.json
 ```
 
 ### Frontend
@@ -274,7 +280,7 @@ python -m pipeline.build                             # merges everything into we
 ```bash
 cd web
 npm install
-npm run build:data   # regenerates public/linkverse.json from public/dataset.json
+npm run build:data   # regenerates web/public/linkverse.json from data/dataset.json
 npm run dev           # http://localhost:5173/
 npm run build          # tsc -b && vite build
 ```

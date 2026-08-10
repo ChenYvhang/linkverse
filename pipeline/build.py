@@ -1,14 +1,19 @@
-"""Stage6 — merge every stage's output into web/public/dataset.json.
+"""Stage6 — merge every stage's output into data/dataset.json.
 
-Single static file, fetched once by the frontend. No key ever goes into it
-(pipeline/.env stays pipeline-only). Channels without vision/decision
-coverage yet get explicit nulls, never fabricated values — the frontend is
-expected to render "待分析"/"待接入" for those, per the project's honesty rule.
+Single static file. No key ever goes into it (pipeline/.env stays
+pipeline-only). Channels without vision/decision coverage yet get explicit
+nulls, never fabricated values — the frontend is expected to render
+"待分析"/"待接入" for those, per the project's honesty rule.
+
+This is the full output; the frontend never fetches it directly. It is the
+input to web/scripts/build-linkverse.mjs, which trims it down to
+web/public/linkverse.json (English-only, decisions only) — that trimmed file
+is the one the app actually loads.
 
 Run:
     python -m pipeline.build
 Reads pipeline/artifacts/{features,scores,quota_log}.json, pipeline/cache/{vision,decisions}/*.json,
-pipeline/config/products.yaml. Writes web/public/dataset.json.
+pipeline/config/products.yaml. Writes data/dataset.json.
 """
 import json
 from pathlib import Path
@@ -34,7 +39,12 @@ SCRIPTS_CACHE_DIR = ROOT / "cache" / "scripts"
 VARIANT_TRANSLATIONS_CACHE_DIR = ROOT / "cache" / "variant_translations"
 CONTENT_TRANSLATIONS_CACHE_DIR = ROOT / "cache" / "content_translations"
 PRODUCTS_PATH = ROOT / "config" / "products.yaml"
-DATASET_OUT_PATH = ROOT.parent / "web" / "public" / "dataset.json"
+# Deliberately NOT under web/public/: everything in that directory is copied
+# verbatim into the deploy bundle, and this file is 60MB+ that no runtime code
+# ever fetches (the frontend reads web/public/linkverse.json, the trimmed
+# subset built from this one). Keeping it here makes it a build input, not a
+# shipped asset.
+DATASET_OUT_PATH = ROOT.parent / "data" / "dataset.json"
 
 # Video-level fields kept in the output (drop internal-only ones like raw
 # tags/description to keep dataset.json lean — the frontend doesn't need them).

@@ -11,13 +11,17 @@ export default defineConfig({
   // hardcoded here, where it silently went stale across a repo rename.
   base: process.env.PAGES_BASE ?? '/',
   plugins: [react(), tailwindcss()],
-  server: {
-    watch: {
-      // public/dataset.json is the pipeline's 60MB+ full output, kept here only
-      // as the input to `npm run build:data`. The app never fetches it, and
-      // watching a file this large makes the dev server fall over with EBUSY
-      // while the pipeline is rewriting it.
-      ignored: ['**/public/dataset.json'],
+  build: {
+    rolldownOptions: {
+      output: {
+        // Recharts + its d3 deps are roughly two thirds of the bundle and
+        // change far less often than our own code. Splitting them out means a
+        // normal UI edit only invalidates the small app chunk, leaving the
+        // vendor chunk cached in returning visitors' browsers.
+        advancedChunks: {
+          groups: [{ name: 'charts', test: /node_modules\/(recharts|d3-|victory-)/ }],
+        },
+      },
     },
   },
 })
