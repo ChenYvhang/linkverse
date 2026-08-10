@@ -286,11 +286,11 @@ export default function LinkVerse() {
           <span className="hidden sm:inline text-xs text-muted border-l border-line pl-4">
             Find breakout creators before they blow up
           </span>
-          {data && (
-            <span className="num ml-auto text-xs text-muted">
-              {data.meta.analyzed_count} analyzed · {data.meta.channel_count.toLocaleString()} tracked
-            </span>
-          )}
+          {/* Deliberately no counts here: collection and analysis run on an
+              ongoing basis, so a number in the header would need to be kept
+              live or go stale. The as-of coverage figures live in "How this
+              was measured" below, next to the backtest sample counts they
+              need to be read alongside anyway. */}
         </div>
       </header>
 
@@ -466,23 +466,19 @@ function ReadyResults({
             </div>
 
             <p className="mt-8 text-sm text-muted max-w-2xl leading-relaxed">
-              LinkVerse scores {data.meta.channel_count.toLocaleString()} creators on two axes —{" "}
+              LinkVerse scores creators on two axes —{" "}
               <span className="text-ink font-medium">Potential</span> (are they about to break out?) and{" "}
               <span className="text-ink font-medium">Resonance</span> (do they fit your product?) — then hands you a
               ready outreach kit for each one.
             </p>
 
-            {/* Coverage, stated up front. Ranking only what has been analyzed is
-                fine; letting a viewer assume the list covers every collected
-                channel is not. */}
-            <p className="mt-3 text-xs text-muted max-w-2xl">
-              {data.meta.analyzed_count.toLocaleString()} of{" "}
-              {data.meta.channel_count.toLocaleString()} collected channels have been through vision
-              analysis and scoring — the rest are collected but not yet analyzed, and are not ranked
-              here.
-            </p>
-
-            {data.meta.backtest && <Methodology backtest={data.meta.backtest} />}
+            {data.meta.backtest && (
+              <Methodology
+                backtest={data.meta.backtest}
+                channelCount={data.meta.channel_count}
+                analyzedCount={data.meta.analyzed_count}
+              />
+            )}
           </>
         )}
       </section>
@@ -816,7 +812,15 @@ function Benefit({ title, body }: { title: string; body: string }) {
 // the tiers where the model loses to the follower-count baseline. Hidden by
 // default because most viewers want the answer, not the statistics; one click
 // away because a claim nobody can inspect is just marketing.
-function Methodology({ backtest }: { backtest: NonNullable<Dataset["meta"]["backtest"]> }) {
+function Methodology({
+  backtest,
+  channelCount,
+  analyzedCount,
+}: {
+  backtest: NonNullable<Dataset["meta"]["backtest"]>;
+  channelCount: number;
+  analyzedCount: number;
+}) {
   const [open, setOpen] = useState(false);
   const tiers = backtest.tiers.filter((t) => t.tier !== "global");
 
@@ -835,6 +839,14 @@ function Methodology({ backtest }: { backtest: NonNullable<Dataset["meta"]["back
 
       {open && (
         <div className="mt-3 rounded-xl border border-line bg-paper/60 p-4">
+          {/* Coverage, kept here rather than in the header: collection and
+              analysis run on an ongoing basis, so a count belongs next to a
+              methodology note (as-of this measurement) rather than in a
+              headline that would need to stay live or read as stale. */}
+          <p className="num text-xs text-ink mb-2">
+            {analyzedCount.toLocaleString()} of {channelCount.toLocaleString()} collected channels
+            analyzed and scored as of this measurement.
+          </p>
           <p className="text-xs text-muted leading-relaxed mb-3">
             Top-{backtest.k} hit rate against a follower-count baseline, on channels held out of
             training. Broken down by subscriber tier, because a single global number hides where the
