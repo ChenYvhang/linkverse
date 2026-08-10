@@ -152,7 +152,7 @@ function buildVelocity(videos) {
     }));
 }
 
-function buildCreator(c, productsById) {
+function buildCreator(c, productsById, competitorLabels = {}) {
   const productId = c.decision.recommended_product;
   const resonance = c.scores.resonance?.[productId];
   const rr = c.decision.risk_review;
@@ -192,7 +192,9 @@ function buildCreator(c, productsById) {
     scripts,
     risk: {
       flagged: rr.competitor_flag,
-      keywords: rr.flagged_keywords,
+      // Normalised to brand names: cards written before decide.py mapped these
+      // hold the raw matcher, which is lowercase and sometimes Chinese.
+      keywords: (rr.flagged_keywords ?? []).map((k) => competitorLabels[k] ?? competitorLabels[String(k).toLowerCase()] ?? k),
       conclusion: rr.conclusion_en ?? rr.conclusion,
     },
     contributions: (resonance?.contributions ?? []).map((x) => ({
@@ -226,7 +228,7 @@ function main() {
   const productsById = new Map(dataset.products.map((p) => [p.id, p.name]));
 
   const analyzed = dataset.creators.filter((c) => c.decision !== null);
-  const creators = analyzed.map((c) => buildCreator(c, productsById));
+  const creators = analyzed.map((c) => buildCreator(c, productsById, dataset.competitor_labels ?? {}));
 
   const output = { meta: buildMeta(dataset), creators };
 

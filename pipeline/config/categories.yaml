@@ -28,7 +28,7 @@ categories:
   - id: sunscreen
     name: "防晒"
     label_en: "Sunscreen"
-    status: onboarding
+    status: ready
 
   - id: supplement
     name: "运动补剂"

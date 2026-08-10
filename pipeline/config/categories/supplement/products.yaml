@@ -5,6 +5,21 @@
 # 向量为手工定义（基于公开品类定位），不是测量值。
 # 单品为品类原型（乳清蛋白 / 肌酸 / 电解质），非任何真实品牌产品。
 
+# 竞品关键词 -> 对外显示的品牌名。匹配仍用各语言变体（否则漏检中文频道），
+# 但命中结果会进 UI 和 Stage5 的 prompt，而 UI 只显示英文，所以展示层统一
+# 映射成品牌的英文名。
+competitor_labels:
+  "myprotein": "Myprotein"
+  "optimum nutrition": "Optimum Nutrition"
+  "on whey": "Optimum Nutrition"
+  "muscletech": "MuscleTech"
+  "肌肉科技": "MuscleTech"
+  "dymatize": "Dymatize"
+  "ghost lifestyle": "Ghost"
+  "transparent labs": "Transparent Labs"
+  "西王": "Xiwang"
+  "诺特兰德": "Nutrend"
+
 competitor_keywords:
   - "myprotein"
   - "optimum nutrition"

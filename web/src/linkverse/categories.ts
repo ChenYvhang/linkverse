@@ -17,6 +17,6 @@ export type CategoryDef = {
 // dependency (see the comment there for why).
 export const CATEGORIES: CategoryDef[] = [
   { id: "action_camera", label: "Action Cameras", status: "ready", dataPath: "linkverse.json" },
-  { id: "sunscreen", label: "Sunscreen", status: "onboarding", dataPath: "linkverse/sunscreen.json" },
+  { id: "sunscreen", label: "Sunscreen", status: "ready", dataPath: "linkverse/sunscreen.json" },
   { id: "supplement", label: "Supplements", status: "onboarding", dataPath: "linkverse/supplement.json" },
 ];

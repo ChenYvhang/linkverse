@@ -349,6 +349,11 @@ def run(category: str | None = None) -> dict:
             {"key": d["key"], "index": d["index"], "name": d["name"], "description": d["description"]}
             for d in config.load_dimensions(category)
         ],
+        # Matched keyword -> brand display name. Cards generated before
+        # decide.py started mapping these store the raw matcher ("la
+        # roche-posay"), so the trim step normalises on the way out and old and
+        # new cards render the same.
+        "competitor_labels": config.load_competitor_labels(category),
         "products": products,
         "creators": creators,
     }

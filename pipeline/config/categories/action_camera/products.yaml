@@ -10,6 +10,23 @@
 # 竞品关键词 —— Stage5 (decide.py) 先用这份规则扫频道标题/简介/标签，命中即为
 # 独家性风险；LLM 只负责复核这条规则的判定，而不是自己凭印象猜竞品。
 # 与单品向量同属品类知识，所以放在同一个文件里，随品类切换。
+# 竞品关键词 -> 对外显示的品牌名。匹配仍用各语言变体（否则漏检中文频道），
+# 但命中结果会进 UI 和 Stage5 的 prompt，而 UI 只显示英文，所以展示层统一
+# 映射成品牌的英文名。
+competitor_labels:
+  "gopro": "GoPro"
+  "go pro": "GoPro"
+  "dji": "DJI"
+  "osmo": "DJI Osmo"
+  "dji osmo action": "DJI Osmo Action"
+  "akaso": "AKASO"
+  "sjcam": "SJCAM"
+  "insta360 competitor": "Insta360 competitor"
+  "ricoh theta": "Ricoh Theta"
+  "kandao": "Kandao"
+  "yi action": "YI Action"
+  "campark": "Campark"
+
 competitor_keywords:
   - "gopro"
   - "go pro"

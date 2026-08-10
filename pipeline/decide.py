@@ -72,7 +72,12 @@ def detect_competitor_mentions(channel: dict, category: str | None = None) -> di
         haystack_parts.append(v.get("description", "") or "")
         haystack_parts.extend(v.get("tags", []) or [])
     haystack = " ".join(haystack_parts).lower()
-    hits = sorted({kw for kw in keywords if kw in haystack})
+    labels = config.load_competitor_labels(category)
+    # Report the brand's English name, not the matched string. Matching keeps
+    # the per-language variants (dropping 理肤泉 would miss Chinese channels
+    # entirely), but the hit reaches both the UI and the Stage5 prompt, and both
+    # are English-only.
+    hits = sorted({labels.get(kw, kw) for kw in keywords if kw in haystack})
     return {"competitor_flag": len(hits) > 0, "flagged_keywords": hits}
 
 

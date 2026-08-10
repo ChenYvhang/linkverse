@@ -119,6 +119,11 @@ def load_competitor_keywords(category: str | None = None) -> list[str]:
     return _load_yaml(category_dir(category) / "products.yaml").get("competitor_keywords", [])
 
 
+def load_competitor_labels(category: str | None = None) -> dict[str, str]:
+    """{命中的关键词: 对外显示的品牌英文名}。"""
+    return _load_yaml(category_dir(category) / "products.yaml").get("competitor_labels", {})
+
+
 def load_seeds(category: str | None = None) -> list[dict]:
     return _load_yaml(category_dir(category) / "seeds.yaml")["seeds"]
 
