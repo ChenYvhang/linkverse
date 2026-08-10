@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CATEGORIES, type CategoryId } from "./categories";
-import { diagnoseCompany, type ConversationTurn, type DiagnosisResult } from "./diagnose";
+import { diagnoseCompany, type ConversationTurn, type DiagnosisResult, type ProductMatch } from "./diagnose";
 import { DEMO_SCENARIOS, type DemoScenario } from "./demoScenarios";
 
 // The very first message is static (no point calling the model before the
@@ -28,8 +28,12 @@ type Diagnosis = Extract<DiagnosisResult, { done: true; ok: true }>;
 
 export default function Onboarding({
   onDiagnosed,
+  dimensions,
 }: {
-  onDiagnosed: (categoryId: CategoryId | null) => void;
+  onDiagnosed: (categoryId: CategoryId | null, match?: ProductMatch) => void;
+  /** The active category's axes, forwarded to /api/diagnose so the model can
+   *  place the visitor's product on them. */
+  dimensions?: { key: string; name: string; description: string }[];
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", text: OPENING_QUESTION },
@@ -50,6 +54,9 @@ export default function Onboarding({
   const [manualFallback, setManualFallback] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Held in a ref, not state: it is read once when handing off to the parent
+  // and never rendered, so it should not schedule a re-render.
+  const matchRef = useRef<ProductMatch | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -64,7 +71,7 @@ export default function Onboarding({
 
   async function runDiagnosis(conv: ConversationTurn[], turnsSoFar: number) {
     setDiagnosing(true);
-    const result = await diagnoseCompany(conv);
+    const result = await diagnoseCompany(conv, dimensions);
     setDiagnosing(false);
 
     if (!result.done) {
@@ -76,7 +83,7 @@ export default function Onboarding({
       // Never stall the chat past the turn budget — commit to an honest
       // no-match rather than asking forever.
       const summary = "Thanks — that's enough to go on.";
-      setDiagnosis({ done: true, ok: true, categoryId: null, confidence: 0, summary });
+      setDiagnosis({ done: true, ok: true, categoryId: null, confidence: 0, summary, productVector: null, product: "" });
       setMessages((m) => [...m, { role: "assistant", text: summary }]);
       return;
     }
@@ -86,6 +93,10 @@ export default function Onboarding({
       return;
     }
 
+    matchRef.current =
+      result.productVector && result.productVector.length > 0
+        ? { product: result.product, vector: result.productVector }
+        : null;
     setDiagnosis(result);
     setMessages((m) => [...m, { role: "assistant", text: result.summary }]);
   }
@@ -118,6 +129,7 @@ export default function Onboarding({
     if (diagnosing || diagnosis || manualFallback || playingScenario) return;
     setPlayingScenario(true);
     setManualFallback(false);
+    matchRef.current = null;
     setMessages([{ role: "assistant", text: scenario.questions[0] }]);
     setConversation([{ role: "assistant", text: scenario.questions[0] }]);
     setTurnCount(0);
@@ -143,6 +155,8 @@ export default function Onboarding({
       categoryId: scenario.categoryId,
       confidence: scenario.confidence,
       summary: scenario.summary,
+      productVector: null,
+      product: "",
     });
     setMessages((m) => [...m, { role: "assistant", text: scenario.summary }]);
     setPlayingScenario(false);
@@ -152,9 +166,9 @@ export default function Onboarding({
     const label = CATEGORIES.find((c) => c.id === id)?.label ?? id;
     const summary = `You picked ${label} manually — no live diagnosis was available.`;
     setManualFallback(false);
-    setDiagnosis({ done: true, ok: true, categoryId: id, confidence: 0, summary });
+    setDiagnosis({ done: true, ok: true, categoryId: id, confidence: 0, summary, productVector: null, product: "" });
     setMessages((m) => [...m, { role: "assistant", text: summary }]);
-    onDiagnosed(id);
+    onDiagnosed(id, matchRef.current ?? undefined);
   }
 
   const done = diagnosis !== null;
@@ -253,7 +267,7 @@ export default function Onboarding({
                 Diagnosis
               </div>
               <button
-                onClick={() => onDiagnosed(diagnosis.categoryId)}
+                onClick={() => onDiagnosed(diagnosis.categoryId, matchRef.current ?? undefined)}
                 className="text-sm font-medium text-accent border border-accent/30 rounded-lg px-4 py-2
                   hover:bg-accent hover:text-white transition-colors"
               >

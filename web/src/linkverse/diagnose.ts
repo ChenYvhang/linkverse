@@ -1,10 +1,26 @@
 import { CATEGORIES, type CategoryId } from "./categories";
 
+/** The visitor's own product, placed on the active category's axes. When
+ *  present, the ranking is recomputed against it instead of showing the
+ *  pipeline's precomputed one. */
+export type ProductMatch = { product: string; vector: number[] };
+
 export type ConversationTurn = { role: "assistant" | "user"; text: string };
 
 export type DiagnosisResult =
   | { done: false; question: string }
-  | { done: true; ok: true; categoryId: CategoryId | null; confidence: number; summary: string }
+  | {
+      done: true;
+      ok: true;
+      categoryId: CategoryId | null;
+      confidence: number;
+      summary: string;
+      /** The visitor's product placed on the category's axes, or null when the
+       *  model couldn't place it. Non-null means the ranking is re-scored
+       *  against their product instead of the pipeline's fixed one. */
+      productVector: number[] | null;
+      product: string;
+    }
   | { done: true; ok: false };
 
 type ApiResponse =
@@ -16,6 +32,7 @@ type ApiResponse =
       category: string | null;
       creatorType?: string;
       confidence: number;
+      productVector?: number[] | null;
     };
 
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -40,7 +57,12 @@ function summarize(categoryId: CategoryId | null, product: string, creatorType?:
 // throwing or hanging, so the chat can fall back to manual category
 // selection instead of ever stalling on a blank/frozen state (important
 // live-demo requirement — see Onboarding.tsx's manual-fallback UI).
-export async function diagnoseCompany(conversation: ConversationTurn[]): Promise<DiagnosisResult> {
+export async function diagnoseCompany(
+  conversation: ConversationTurn[],
+  // The active category's axes, from the dataset meta. Sent so the model can
+  // place the visitor's product on the same axes the creators were scored on.
+  dimensions?: { key: string; name: string; description: string }[],
+): Promise<DiagnosisResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -48,7 +70,7 @@ export async function diagnoseCompany(conversation: ConversationTurn[]): Promise
     const res = await fetch("/api/diagnose", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversation }),
+      body: JSON.stringify({ conversation, dimensions }),
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`/api/diagnose responded ${res.status}`);
@@ -65,6 +87,8 @@ export async function diagnoseCompany(conversation: ConversationTurn[]): Promise
       categoryId,
       confidence: data.confidence,
       summary: summarize(categoryId, data.product, data.creatorType),
+      productVector: Array.isArray(data.productVector) ? data.productVector : null,
+      product: data.product,
     };
   } catch {
     return { done: true, ok: false };

@@ -73,6 +73,13 @@ function buildMeta(dataset) {
       lift: round1(pk.lift),
     },
     products: Object.fromEntries(dataset.products.map((p) => [p.id, p.name])),
+    // Axis definitions for this category, in content_vector order. Sent to
+    // /api/diagnose so the model can place a visitor's product on the same
+    // axes the creators were scored on.
+    dimensions: (dataset.dimensions ?? [])
+      .slice()
+      .sort((a, b) => a.index - b.index)
+      .map((d) => ({ key: d.key, name: d.name, description: d.description })),
     // Per-subscriber-tier results at the primary K, including the ones that
     // make the model look bad (the 1K-10K tier's lift is below 1, i.e. worse
     // than ranking by follower count). The headline number alone is an
@@ -113,6 +120,10 @@ function buildScripts(creator) {
 function buildVision(vision) {
   if (!vision) return null;
   return {
+    // The raw semantic vector, needed to re-score resonance against a product
+    // the pipeline never saw (the onboarding chat lets a visitor describe their
+    // own product). 8 floats per creator is a rounding error on file size.
+    contentVector: vision.content_vector ?? null,
     // English only — never fall back to the raw Chinese sport_types. An empty
     // array reads as "not analyzed yet" in the UI, which is honest; Chinese
     // text in an English UI is not.

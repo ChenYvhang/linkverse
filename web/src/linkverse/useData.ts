@@ -18,6 +18,9 @@ export type RiskReview = {
 export type Contribution = { dim: string; value: number };
 
 export type Vision = {
+  /** Raw semantic vector in meta.dimensions order. Present so the app can
+   *  score a product the pipeline never saw (the onboarding chat). */
+  contentVector: number[] | null;
   sportTypes: string[];
   perspective: string;
   pace: string;
@@ -63,6 +66,8 @@ export type Dataset = {
     analyzed_count: number;
     finding: { k: number; model_pct: number; baseline_pct: number; lift: number };
     products: Record<string, string>;
+    /** The category's axes, in content_vector order. */
+    dimensions: { key: string; name: string; description: string }[];
     backtest?: {
       k: number;
       tiers: {

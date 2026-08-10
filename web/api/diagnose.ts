@@ -18,6 +18,12 @@ type VercelResponse = {
 
 type ConversationTurn = { role: "assistant" | "user"; text: string };
 
+// The category's semantic axes, sent by the client from the dataset's meta
+// (see web/scripts/build-linkverse.mjs). Passed in rather than duplicated here
+// so there is exactly one definition of a category's space — pipeline config —
+// and this function stays free of cross-directory imports.
+type Dimension = { key: string; name: string; description: string };
+
 // Same model/base URL the pipeline pins (pipeline/decide.py): deepseek-chat
 // and deepseek-reasoner were retired 2026-07-24, deepseek-v4-flash is the
 // current name. Kept in sync with the pipeline deliberately — one vendor,
@@ -35,8 +41,32 @@ const CATEGORY_LIST: { id: string; label: string }[] = [
   { id: "supplement", label: "Supplements" },
 ];
 
-function buildSystemPrompt(): string {
+// Appended to the system prompt when the client supplies the category's axes.
+// This is what turns the chat from a classifier into real matching: the model
+// places the visitor's product on the same axes vision.py scored creators on,
+// and the client then recomputes resonance against that vector instead of
+// showing a fixed, precomputed ranking.
+function buildVectorInstruction(dims: Dimension[]): string {
+  const axes = dims
+    .map((d, i) => `  [${i}] ${d.key} — ${d.name}: ${d.description}`)
+    .join("\n");
+  return `
+
+When you emit the "result" object, ALSO include "productVector": an array of \
+exactly ${dims.length} numbers between 0.0 and 1.0, in this exact order:
+
+${axes}
+
+Each number is how much THIS PRODUCT needs that quality in a creator's content \
+— not how much the creator has it. Score only from what the user actually told \
+you about the product; where they said nothing relevant to an axis, use 0.5 \
+rather than inventing a preference. If you cannot place the product on these \
+axes at all, set "productVector": null instead of guessing.`;
+}
+
+function buildSystemPrompt(dims?: Dimension[]): string {
   const categoryList = CATEGORY_LIST.map((c) => `- "${c.id}": ${c.label}`).join("\n");
+  const vectorPart = dims && dims.length > 0 ? buildVectorInstruction(dims) : "";
   return `You are LinkVerse's onboarding conversation partner — not a form, a person actually paying \
 attention. A brand is describing their product so we can match them with creators. You drive the \
 whole conversation, one natural exchange at a time.
@@ -79,7 +109,7 @@ fits).
 {"type":"result","company":"<what the company does, one sentence>","product":"<the product being promoted>","category":"<one of the ids above, or null if none fit>","creatorType":"<the kind of creator/style they want>","confidence":<number between 0 and 1>}
 
 Respond with ONLY a single json object matching one of the two shapes above — no prose, no markdown \
-code fences.`;
+code fences.${vectorPart}`;
   // ^ the literal lowercase "json" is load-bearing: DeepSeek's
   // response_format={"type":"json_object"} requires the word to appear in the
   // prompt, and silently degrades to free-form text if it doesn't.
@@ -116,9 +146,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const body = req.body as { conversation?: unknown } | undefined;
+    const body = req.body as { conversation?: unknown; dimensions?: unknown } | undefined;
     const conversation: ConversationTurn[] = Array.isArray(body?.conversation)
       ? (body.conversation as ConversationTurn[])
+      : [];
+    const dimensions: Dimension[] = Array.isArray(body?.dimensions)
+      ? (body.dimensions as Dimension[]).filter(
+          (d) => d && typeof d.key === "string" && typeof d.description === "string",
+        )
       : [];
     if (conversation.length === 0) {
       res.status(400).json({ error: "conversation is required" });
@@ -126,7 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const messages = [
-      { role: "system", content: buildSystemPrompt() },
+      { role: "system", content: buildSystemPrompt(dimensions) },
       ...conversation.map((t) => ({
         role: t.role === "assistant" ? "assistant" : "user",
         content: t.text,
@@ -171,6 +206,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!isValidShape(parsed)) {
       res.status(502).json({ error: "DeepSeek response had an unexpected shape" });
       return;
+    }
+
+    // A malformed vector is dropped rather than passed through: the client
+    // falls back to the pipeline's precomputed ranking, which is worse but
+    // real. A wrong-length or out-of-range vector would silently produce a
+    // nonsense ranking that still looks authoritative.
+    const out = parsed as Record<string, unknown>;
+    if (out.type === "result" && dimensions.length > 0) {
+      const v = out.productVector;
+      const valid =
+        Array.isArray(v) &&
+        v.length === dimensions.length &&
+        v.every((n) => typeof n === "number" && n >= 0 && n <= 1);
+      if (!valid) out.productVector = null;
     }
 
     res.status(200).json(parsed);

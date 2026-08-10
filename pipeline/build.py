@@ -341,6 +341,14 @@ def run(category: str | None = None) -> dict:
             ],
             "excluded_below_1k_count": potential_meta["backtest_stratified"]["excluded_below_1k"]["count"],
         } if potential_meta and potential_meta.get("backtest_stratified") else None,
+        # The category's semantic space, so downstream consumers can score a
+        # product the pipeline never saw (the onboarding chat lets a visitor
+        # describe their own) against the same axes vision.py used. Without
+        # this the vectors in `creators` are 8 anonymous numbers.
+        "dimensions": [
+            {"key": d["key"], "index": d["index"], "name": d["name"], "description": d["description"]}
+            for d in config.load_dimensions(category)
+        ],
         "products": products,
         "creators": creators,
     }

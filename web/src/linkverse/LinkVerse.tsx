@@ -4,6 +4,7 @@ import Scope, { isPriority } from "./Scope";
 import Kit from "./Kit";
 import Onboarding from "./Onboarding";
 import { CATEGORIES, type CategoryDef, type CategoryId } from "./categories";
+import type { ProductMatch } from "./diagnose";
 
 const fmtSubs = (n: number) =>
   n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`;
@@ -12,6 +13,36 @@ const fmtSubs = (n: number) =>
 // screen borrows this dataset for its blurred preview — if a second
 // category ever goes live, this single-fetch assumption needs revisiting.
 const READY_CATEGORY = CATEGORIES.find((c) => c.status === "ready") ?? CATEGORIES[0];
+// Resonance against an arbitrary product vector — the same cosine similarity
+// pipeline/score.py uses, so a product the pipeline never saw is scored on
+// exactly the axes the creators were scored on. Without this the chat could
+// only ever route to a precomputed ranking.
+function cosine(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length);
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < n; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+// Re-score and re-rank against the visitor's product. Creators without a
+// content vector keep their pipeline scores and sort last rather than being
+// dropped or given a fabricated score.
+function rescore(creators: Creator[], match: ProductMatch): Creator[] {
+  return creators
+    .map((c) => {
+      const v = c.vision?.contentVector;
+      if (!v || v.length !== match.vector.length) return c;
+      const R = Math.round(cosine(v, match.vector) * 1000) / 10;
+      const C = Math.round(Math.sqrt(Math.max(c.P, 0) * Math.max(R, 0)) * 10) / 10;
+      return { ...c, R, C, product: match.product };
+    })
+    .sort((a, b) => b.C - a.C);
+}
+
 const EMPTY_POOL: Set<string> = new Set();
 const noop = () => {};
 
@@ -66,6 +97,9 @@ export default function LinkVerse() {
   // Results (ranking table or locked preview) stay hidden below the chat
   // until a diagnosis actually lands — the landing page is chat-only.
   const [revealed, setRevealed] = useState(false);
+  // Non-null once the chat has placed the visitor's own product on this
+  // category's axes; the ranking below is then theirs, not the demo's.
+  const [match, setMatch] = useState<ProductMatch | null>(null);
 
   useEffect(() => {
     setSelected(null);
@@ -77,7 +111,8 @@ export default function LinkVerse() {
     savePool(categoryId, poolIds);
   }, [categoryId, poolIds]);
 
-  function handleDiagnosed(id: CategoryId | null) {
+  function handleDiagnosed(id: CategoryId | null, productMatch?: ProductMatch) {
+    setMatch(productMatch ?? null);
     setUnmatched(id === null);
     if (id !== null) setCategoryId(id);
     setRevealed(true);
@@ -90,21 +125,29 @@ export default function LinkVerse() {
     setCategoryId(READY_CATEGORY.id);
     setUnmatched(false);
     setRevealed(false);
+    setMatch(null);
     setSelected(null);
     setPoolIds(new Set());
     setOnboardingKey((k) => k + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const selectedCreator = useMemo(
-    () => data?.creators.find((c) => c.id === selected) ?? null,
-    [data, selected],
+  // Everything below ranks off `creators`, which is the visitor's re-scored
+  // ranking when the chat produced a product vector, and the pipeline's
+  // precomputed one otherwise.
+  const creators = useMemo(
+    () => (data ? (match ? rescore(data.creators, match) : data.creators) : []),
+    [data, match],
   );
   const shown = useMemo(
-    () => (data ? (onlyPriority ? data.creators.filter(isPriority) : data.creators) : []),
-    [data, onlyPriority],
+    () => (onlyPriority ? creators.filter(isPriority) : creators),
+    [creators, onlyPriority],
   );
-  const top = useMemo(() => (data ? data.creators.slice(0, 12) : []), [data]);
+  const top = useMemo(() => creators.slice(0, 12), [creators]);
+  const selectedCreator = useMemo(
+    () => creators.find((c) => c.id === selected) ?? null,
+    [creators, selected],
+  );
 
   const togglePool = (id: string) =>
     setPoolIds((prev) => {
@@ -115,8 +158,8 @@ export default function LinkVerse() {
     });
 
   const poolCreators = useMemo(
-    () => (data ? data.creators.filter((c) => poolIds.has(c.id)) : []),
-    [data, poolIds],
+    () => creators.filter((c) => poolIds.has(c.id)),
+    [creators, poolIds],
   );
   const poolBudget = useMemo(() => {
     const priced = poolCreators.filter((c) => c.price.min !== null && c.price.max !== null);
@@ -170,7 +213,7 @@ export default function LinkVerse() {
         </p>
       </section>
 
-      <Onboarding key={onboardingKey} onDiagnosed={handleDiagnosed} />
+      <Onboarding key={onboardingKey} onDiagnosed={handleDiagnosed} dimensions={data?.meta.dimensions} />
 
       {revealed && (
         <div id="results" className="animate-reveal">
