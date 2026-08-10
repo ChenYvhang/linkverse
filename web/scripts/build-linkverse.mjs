@@ -172,6 +172,11 @@ function buildCreator(c, productsById) {
     // config-provided English label; if even that is missing we show nothing
     // rather than leaking Chinese into the UI.
     sport: c.vision?.sport_types_en?.[0] ?? c.vertical_en ?? null,
+    // Clean, low-cardinality facet for filtering. `sport` above is free-text
+    // LLM output — 124 distinct values on this dataset, with inconsistent
+    // casing and compound entries — so it reads well on a card but is useless
+    // as a filter. The vertical is a fixed vocabulary from the category config.
+    vertical: c.vertical_en ?? null,
     thumb: c.thumbnails?.[0] ?? null,
     P: round1(c.decision.potential_score),
     R: round1(c.decision.resonance_score),

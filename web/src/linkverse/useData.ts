@@ -43,6 +43,9 @@ export type Creator = {
   subs: number;
   market: string;
   sport: string;
+  /** Fixed-vocabulary vertical label — the filterable facet. `sport` is
+   *  free-text LLM output (124 distinct values here) and unusable as one. */
+  vertical: string | null;
   thumb: string | null;
   P: number; // Potential — about to break out?
   R: number; // Resonance — fits the product?

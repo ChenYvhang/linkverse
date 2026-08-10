@@ -75,6 +75,54 @@ function rescore(creators: Creator[], match: ProductMatch): Creator[] {
     .sort((a, b) => b.C - a.C);
 }
 
+// Subscriber bands mirror pipeline/score.py's SUBSCRIBER_TIERS, so a band the
+// user filters by means the same thing as a row in the backtest table.
+const SUB_BANDS: { id: string; label: string; min: number; max: number | null }[] = [
+  { id: "1K-10K", label: "1K – 10K", min: 1_000, max: 10_000 },
+  { id: "10K-50K", label: "10K – 50K", min: 10_000, max: 50_000 },
+  { id: "50K-200K", label: "50K – 200K", min: 50_000, max: 200_000 },
+  { id: "200K-1M", label: "200K – 1M", min: 200_000, max: 1_000_000 },
+  { id: "1M+", label: "1M+", min: 1_000_000, max: null },
+];
+
+export type Filters = {
+  markets: Set<string>;
+  bands: Set<string>;
+  verticals: Set<string>;
+  excludeCompetitors: boolean;
+  priorityOnly: boolean;
+};
+
+const NO_FILTERS: Filters = {
+  markets: new Set(),
+  bands: new Set(),
+  verticals: new Set(),
+  excludeCompetitors: false,
+  priorityOnly: false,
+};
+
+const inBand = (subs: number, id: string) => {
+  const b = SUB_BANDS.find((x) => x.id === id);
+  return !!b && subs >= b.min && (b.max === null || subs < b.max);
+};
+
+// An empty facet means "no constraint", not "match nothing" — otherwise the
+// first click on any facet would empty the whole board.
+function applyFilters(creators: Creator[], f: Filters): Creator[] {
+  return creators.filter((c) => {
+    if (f.priorityOnly && !isPriority(c)) return false;
+    if (f.excludeCompetitors && c.risk?.flagged) return false;
+    if (f.markets.size > 0 && !f.markets.has(c.market)) return false;
+    if (f.verticals.size > 0 && !(c.vertical && f.verticals.has(c.vertical))) return false;
+    if (f.bands.size > 0 && ![...f.bands].some((b) => inBand(c.subs, b))) return false;
+    return true;
+  });
+}
+
+const countFilters = (f: Filters) =>
+  f.markets.size + f.bands.size + f.verticals.size +
+  (f.excludeCompetitors ? 1 : 0) + (f.priorityOnly ? 1 : 0);
+
 const EMPTY_POOL: Set<string> = new Set();
 const noop = () => {};
 
@@ -116,7 +164,7 @@ export default function LinkVerse() {
     category.status === "ready" ? category.dataPath : READY_CATEGORY.dataPath,
   );
   const [selected, setSelected] = useState<string | null>(null);
-  const [onlyPriority, setOnlyPriority] = useState(false);
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   // Survives a reload. The pool is the one piece of real user work in the app —
   // losing a shortlist to an accidental refresh mid-demo is avoidable.
   // Keyed by category so switching products doesn't inherit the wrong picks.
@@ -135,7 +183,7 @@ export default function LinkVerse() {
 
   useEffect(() => {
     setSelected(null);
-    setOnlyPriority(false);
+    setFilters(NO_FILTERS);
     setPoolIds(loadPool(categoryId));
   }, [categoryId]);
 
@@ -171,11 +219,8 @@ export default function LinkVerse() {
     () => (data ? (match ? rescore(data.creators, match) : data.creators) : []),
     [data, match],
   );
-  const shown = useMemo(
-    () => (onlyPriority ? creators.filter(isPriority) : creators),
-    [creators, onlyPriority],
-  );
-  const top = useMemo(() => creators.slice(0, 12), [creators]);
+  const shown = useMemo(() => applyFilters(creators, filters), [creators, filters]);
+  const top = useMemo(() => shown.slice(0, 12), [shown]);
   const selectedCreator = useMemo(
     () => creators.find((c) => c.id === selected) ?? null,
     [creators, selected],
@@ -268,8 +313,8 @@ export default function LinkVerse() {
               data={data}
               selected={selected}
               setSelected={setSelected}
-              onlyPriority={onlyPriority}
-              setOnlyPriority={setOnlyPriority}
+              filters={filters}
+              setFilters={setFilters}
               poolIds={poolIds}
               shown={shown}
               top={top}
@@ -327,8 +372,8 @@ function ReadyResults({
   data,
   selected,
   setSelected,
-  onlyPriority,
-  setOnlyPriority,
+  filters,
+  setFilters,
   poolIds,
   shown,
   top,
@@ -338,8 +383,8 @@ function ReadyResults({
   data: Dataset;
   selected: string | null;
   setSelected: (id: string | null) => void;
-  onlyPriority: boolean;
-  setOnlyPriority: (v: boolean) => void;
+  filters: Filters;
+  setFilters: (f: Filters) => void;
   poolIds: Set<string>;
   shown: Creator[];
   top: Creator[];
@@ -414,8 +459,9 @@ function ReadyResults({
           onSelect={setSelected}
           poolIds={poolIds}
           togglePool={togglePool}
-          onlyPriority={onlyPriority}
-          setOnlyPriority={setOnlyPriority}
+          filters={filters}
+          setFilters={setFilters}
+          allCreators={data.creators}
         />
       </section>
 
@@ -441,8 +487,9 @@ function EvidenceSection({
   onSelect,
   poolIds,
   togglePool,
-  onlyPriority,
-  setOnlyPriority,
+  filters,
+  setFilters,
+  allCreators,
 }: {
   shown: Creator[];
   top: Creator[];
@@ -450,8 +497,11 @@ function EvidenceSection({
   onSelect: (id: string | null) => void;
   poolIds: Set<string>;
   togglePool: (id: string) => void;
-  onlyPriority: boolean;
-  setOnlyPriority: (v: boolean) => void;
+  filters: Filters;
+  setFilters: (f: Filters) => void;
+  /** Unfiltered pool — facet options come from it, so options don't vanish as
+   *  soon as they're used. */
+  allCreators: Creator[];
 }) {
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
@@ -478,16 +528,14 @@ function EvidenceSection({
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display font-bold text-ink text-xl">The evidence</h2>
-          <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
-            <input type="checkbox" checked={onlyPriority} onChange={(e) => setOnlyPriority(e.target.checked)} />
-            Priority only
-          </label>
+          <span className="num text-xs text-muted">{shown.length} shown</span>
         </div>
         <p className="text-sm text-muted mb-4 max-w-lg">
           Each dot is a creator. Up = higher potential, right = better product fit.{" "}
           <span className="text-accent font-medium">Blue</span> dots in the top-right are the ones to sign first;
           a white ring means a full script is ready. Click any dot for its kit.
         </p>
+        <FilterBar filters={filters} setFilters={setFilters} allCreators={allCreators} shownCount={shown.length} />
         <div className="rounded-xl border border-line p-2 shadow-[0_0_0_1px_rgba(31,53,224,0.05),0_16px_40px_-20px_rgba(31,53,224,0.25)]">
           <Scope creators={shown} selected={selected} onSelect={onSelect} />
         </div>
@@ -614,8 +662,9 @@ function LockedPreview({
             onSelect={noop}
             poolIds={EMPTY_POOL}
             togglePool={noop}
-            onlyPriority={false}
-            setOnlyPriority={noop}
+            filters={NO_FILTERS}
+            allCreators={mockData.creators}
+            setFilters={noop}
           />
         </div>
         <div className="absolute inset-0 flex items-center justify-center px-6 bg-paper/30">
@@ -865,5 +914,153 @@ function MatchDrawer({
         )}
       </div>
     </div>
+  );
+}
+
+
+const MARKET_LABEL: Record<string, string> = {
+  north_america_europe: "North America / Europe",
+  greater_china: "Greater China",
+  japan: "Japan",
+  korea: "Korea",
+  other: "Other",
+  unknown: "Unknown",
+};
+
+// Facet filters shared by the chart and the list — both read the same filtered
+// array, so they can never disagree about what is on screen.
+function FilterBar({
+  filters,
+  setFilters,
+  allCreators,
+  shownCount,
+}: {
+  filters: Filters;
+  setFilters: (f: Filters) => void;
+  allCreators: Creator[];
+  shownCount: number;
+}) {
+  const [open, setOpen] = useState(false);
+
+  // Options come from the unfiltered pool, so picking one doesn't make the
+  // others disappear. Counts are unfiltered too — they say how many exist, not
+  // how many survive the current selection.
+  const markets = useMemo(() => {
+    const m = new Map<string, number>();
+    allCreators.forEach((c) => m.set(c.market, (m.get(c.market) ?? 0) + 1));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [allCreators]);
+
+  const verticals = useMemo(() => {
+    const m = new Map<string, number>();
+    allCreators.forEach((c) => c.vertical && m.set(c.vertical, (m.get(c.vertical) ?? 0) + 1));
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [allCreators]);
+
+  const flaggedCount = useMemo(() => allCreators.filter((c) => c.risk?.flagged).length, [allCreators]);
+
+  const toggle = (key: "markets" | "bands" | "verticals", value: string) => {
+    const next = new Set(filters[key]);
+    if (next.has(value)) next.delete(value);
+    else next.add(value);
+    setFilters({ ...filters, [key]: next });
+  };
+
+  const active = countFilters(filters);
+
+  return (
+    <div className="mb-4 rounded-xl border border-line bg-paper/50">
+      <div className="flex items-center gap-3 px-3 py-2">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex items-center gap-2 text-xs font-semibold text-ink hover:text-accent transition-colors"
+        >
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-line text-xs leading-none shrink-0">
+            {open ? "−" : "+"}
+          </span>
+          Filters
+          {active > 0 && (
+            <span className="num px-1.5 py-0.5 rounded-full bg-accent text-white text-[10px]">{active}</span>
+          )}
+        </button>
+        <span className="num text-xs text-muted ml-auto">{shownCount} creators</span>
+        {active > 0 && (
+          <button onClick={() => setFilters(NO_FILTERS)} className="text-[11px] text-accent hover:underline">
+            Clear
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="px-3 pb-3 pt-1 border-t border-line space-y-3">
+          <Facet label="Region">
+            {markets.map(([m, n]) => (
+              <Chip key={m} on={filters.markets.has(m)} onClick={() => toggle("markets", m)}>
+                {MARKET_LABEL[m] ?? m.replace(/_/g, " ")} <span className="num opacity-60">{n}</span>
+              </Chip>
+            ))}
+          </Facet>
+
+          <Facet label="Subscribers">
+            {SUB_BANDS.map((b) => (
+              <Chip key={b.id} on={filters.bands.has(b.id)} onClick={() => toggle("bands", b.id)}>
+                {b.label}
+              </Chip>
+            ))}
+          </Facet>
+
+          <Facet label="Sport">
+            {verticals.map(([v, n]) => (
+              <Chip key={v} on={filters.verticals.has(v)} onClick={() => toggle("verticals", v)}>
+                {v} <span className="num opacity-60">{n}</span>
+              </Chip>
+            ))}
+          </Facet>
+
+          <Facet label="Other">
+            <Chip
+              on={filters.excludeCompetitors}
+              onClick={() => setFilters({ ...filters, excludeCompetitors: !filters.excludeCompetitors })}
+            >
+              Hide competitor mentions <span className="num opacity-60">{flaggedCount}</span>
+            </Chip>
+            <Chip
+              on={filters.priorityOnly}
+              onClick={() => setFilters({ ...filters, priorityOnly: !filters.priorityOnly })}
+            >
+              Priority only
+            </Chip>
+          </Facet>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Facet({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[11px] uppercase tracking-wider text-muted font-semibold w-24 shrink-0">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={on}
+      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+        on
+          ? "bg-accent text-white border-accent"
+          : "bg-surface text-ink border-line hover:border-accent/50"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
