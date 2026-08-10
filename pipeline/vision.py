@@ -316,6 +316,17 @@ def run(limit_channels: int | None, top_n_by_potential: int | None, backend_name
     failures = []
     succeeded = 0
 
+    # Which field to echo in the success line. This used to be hardcoded to
+    # sport_types, which only exists for action_camera — for any other category
+    # it raised KeyError *after* the cache had been written and `succeeded`
+    # incremented, so the outer except logged genuine successes as failures and
+    # inflated the failure count. Pick the category's first string_list field
+    # instead (sport_types here, content_topics for sunscreen/supplement).
+    summary_field = next(
+        (f["key"] for f in config.load_vision_schema(category)["fields"] if f["kind"] == "string_list"),
+        "content_vector",
+    )
+
     def process(ch):
         return ch, adapter.analyze_channel(ch)
 
@@ -328,8 +339,9 @@ def run(limit_channels: int | None, top_n_by_potential: int | None, backend_name
                 cache_path = CACHE_DIR / f"{ch['channel_id']}.json"
                 cache_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
                 succeeded += 1
-                logger.info("[%d/%d] OK channel=%s (%s): sport_types=%s",
-                            succeeded, len(pending), ch["channel_id"], ch["title"], result["sport_types"])
+                logger.info("[%d/%d] OK channel=%s (%s): %s=%s",
+                            succeeded, len(pending), ch["channel_id"], ch["title"],
+                            summary_field, result.get(summary_field))
             except Exception as exc:
                 failures.append({"channel_id": ch["channel_id"], "title": ch["title"], "error": str(exc)})
                 logger.error("FAILED channel=%s (%s) after retries: %s", ch["channel_id"], ch["title"], exc)
