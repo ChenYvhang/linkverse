@@ -33,4 +33,4 @@ categories:
   - id: supplement
     name: "运动补剂"
     label_en: "Supplements"
-    status: onboarding
+    status: ready
