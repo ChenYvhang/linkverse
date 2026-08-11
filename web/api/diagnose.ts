@@ -18,10 +18,10 @@ type VercelResponse = {
 
 type ConversationTurn = { role: "assistant" | "user"; text: string };
 
-// The category's semantic axes, sent by the client from the dataset's meta
-// (see web/scripts/build-linkverse.mjs). Passed in rather than duplicated here
-// so there is exactly one definition of a category's space — pipeline config —
-// and this function stays free of cross-directory imports.
+// A category's semantic axes, sent by the client from catalog.json (see
+// pipeline/export_catalog.py). Passed in rather than duplicated here so there
+// is exactly one definition of a category's space — pipeline config — and
+// this function stays free of cross-directory imports.
 type Dimension = { key: string; name: string; description: string };
 
 // Same model/base URL the pipeline pins (pipeline/decide.py): deepseek-chat
@@ -41,32 +41,46 @@ const CATEGORY_LIST: { id: string; label: string }[] = [
   { id: "supplement", label: "Supplements" },
 ];
 
-// Appended to the system prompt when the client supplies the category's axes.
-// This is what turns the chat from a classifier into real matching: the model
-// places the visitor's product on the same axes vision.py scored creators on,
-// and the client then recomputes resonance against that vector instead of
-// showing a fixed, precomputed ranking.
-function buildVectorInstruction(dims: Dimension[]): string {
-  const axes = dims
-    .map((d, i) => `  [${i}] ${d.key} — ${d.name}: ${d.description}`)
-    .join("\n");
+// Appended to the system prompt when the client supplies every category's
+// axes. This is what turns the chat from a classifier into real matching: the
+// model places the visitor's product on the same axes vision.py scored
+// creators on, and the client then recomputes resonance against that vector
+// instead of showing a fixed, precomputed ranking.
+//
+// Sends ALL categories' axes, not just one: the model only knows which
+// category fits once it commits to "category" in this same response, so
+// there is no single axis set to send in advance. Sending only the
+// currently-loaded category's axes (the previous design) meant a visitor
+// describing e.g. a sunscreen product still got scored against action-
+// camera's "stabilization demand" / "gear visibility" — same array length,
+// so validation passed, but the numbers were meaningless. The model is
+// instead told to pick the axis list matching its OWN "category" answer.
+function buildVectorInstruction(dimsByCategory: Record<string, Dimension[]>): string {
+  const sections = Object.entries(dimsByCategory)
+    .map(([catId, dims]) => {
+      const axes = dims.map((d, i) => `    [${i}] ${d.key} — ${d.name}: ${d.description}`).join("\n");
+      return `  "${catId}" (${dims.length} axes, in this order):\n${axes}`;
+    })
+    .join("\n\n");
   return `
 
-When you emit the "result" object, ALSO include "productVector": an array of \
-exactly ${dims.length} numbers between 0.0 and 1.0, in this exact order:
+When you emit the "result" object AND "category" is not null, ALSO include "productVector": an \
+array of numbers between 0.0 and 1.0 that places THIS PRODUCT on the axes for the category you \
+just chose. Use ONLY that category's axis list below, in that exact order — the array length MUST \
+equal that category's axis count:
 
-${axes}
+${sections}
 
-Each number is how much THIS PRODUCT needs that quality in a creator's content \
-— not how much the creator has it. Score only from what the user actually told \
-you about the product; where they said nothing relevant to an axis, use 0.5 \
-rather than inventing a preference. If you cannot place the product on these \
-axes at all, set "productVector": null instead of guessing.`;
+Each number is how much THIS PRODUCT needs that quality in a creator's content — not how much the \
+creator has it. Score only from what the user actually told you about the product; where they said \
+nothing relevant to an axis, use 0.5 rather than inventing a preference. If "category" is null, or \
+you cannot confidently place the product on its axes, set "productVector": null instead of guessing.`;
 }
 
-function buildSystemPrompt(dims?: Dimension[]): string {
+function buildSystemPrompt(dimsByCategory?: Record<string, Dimension[]>): string {
   const categoryList = CATEGORY_LIST.map((c) => `- "${c.id}": ${c.label}`).join("\n");
-  const vectorPart = dims && dims.length > 0 ? buildVectorInstruction(dims) : "";
+  const vectorPart =
+    dimsByCategory && Object.keys(dimsByCategory).length > 0 ? buildVectorInstruction(dimsByCategory) : "";
   return `You are LinkVerse's onboarding conversation partner — not a form, a person actually paying \
 attention. A brand is describing their product so we can match them with creators. You drive the \
 whole conversation, one natural exchange at a time.
@@ -146,22 +160,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const body = req.body as { conversation?: unknown; dimensions?: unknown } | undefined;
+    const body = req.body as { conversation?: unknown; dimensionsByCategory?: unknown } | undefined;
     const conversation: ConversationTurn[] = Array.isArray(body?.conversation)
       ? (body.conversation as ConversationTurn[])
       : [];
-    const dimensions: Dimension[] = Array.isArray(body?.dimensions)
-      ? (body.dimensions as Dimension[]).filter(
-          (d) => d && typeof d.key === "string" && typeof d.description === "string",
-        )
-      : [];
+    const rawDimsByCategory =
+      body?.dimensionsByCategory && typeof body.dimensionsByCategory === "object"
+        ? (body.dimensionsByCategory as Record<string, unknown>)
+        : {};
+    const dimensionsByCategory: Record<string, Dimension[]> = Object.fromEntries(
+      Object.entries(rawDimsByCategory)
+        .filter(([, v]) => Array.isArray(v))
+        .map(([catId, v]) => [
+          catId,
+          (v as Dimension[]).filter((d) => d && typeof d.key === "string" && typeof d.description === "string"),
+        ])
+        .filter(([, dims]) => (dims as Dimension[]).length > 0),
+    );
     if (conversation.length === 0) {
       res.status(400).json({ error: "conversation is required" });
       return;
     }
 
     const messages = [
-      { role: "system", content: buildSystemPrompt(dimensions) },
+      { role: "system", content: buildSystemPrompt(dimensionsByCategory) },
       ...conversation.map((t) => ({
         role: t.role === "assistant" ? "assistant" : "user",
         content: t.text,
@@ -211,13 +233,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // A malformed vector is dropped rather than passed through: the client
     // falls back to the pipeline's precomputed ranking, which is worse but
     // real. A wrong-length or out-of-range vector would silently produce a
-    // nonsense ranking that still looks authoritative.
+    // nonsense ranking that still looks authoritative. Validated against the
+    // MATCHED category's own axis count — not just any category's — so a
+    // vector scored on the wrong category's semantics can't slip through
+    // just because the array happens to be the right length.
     const out = parsed as Record<string, unknown>;
-    if (out.type === "result" && dimensions.length > 0) {
+    if (out.type === "result") {
+      const catId = typeof out.category === "string" ? out.category : null;
+      const dims = catId ? dimensionsByCategory[catId] : undefined;
       const v = out.productVector;
       const valid =
+        !!dims &&
+        dims.length > 0 &&
         Array.isArray(v) &&
-        v.length === dimensions.length &&
+        v.length === dims.length &&
         v.every((n) => typeof n === "number" && n >= 0 && n <= 1);
       if (!valid) out.productVector = null;
     }

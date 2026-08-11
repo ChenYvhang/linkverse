@@ -320,7 +320,7 @@ export default function LinkVerse() {
         </p>
       </section>
 
-      <Onboarding key={onboardingKey} onDiagnosed={handleDiagnosed} dimensions={data?.meta.dimensions} />
+      <Onboarding key={onboardingKey} onDiagnosed={handleDiagnosed} />
 
       {revealed && (
         <div id="results" className="animate-reveal">

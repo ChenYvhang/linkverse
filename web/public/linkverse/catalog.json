@@ -1,0 +1,296 @@
+{
+  "action_camera": {
+    "label": "Action Cameras",
+    "status": "ready",
+    "dimensions": [
+      {
+        "key": "perspective_ratio",
+        "name": "第一人称视角占比",
+        "description": "画面以第一人称/POV视角（含胸前、头戴、自拍杆延伸视角）拍摄的比例"
+      },
+      {
+        "key": "stabilization_demand",
+        "name": "防抖需求强度",
+        "description": "画面运动幅度与抖动程度隐含的对硬件防抖能力的依赖程度"
+      },
+      {
+        "key": "motion_complexity",
+        "name": "运镜复杂度",
+        "description": "运镜手法的丰富程度：多角度切换、跟拍、环绕、无人机等复合运镜的使用程度"
+      },
+      {
+        "key": "scene_extremity",
+        "name": "场景极限度",
+        "description": "拍摄环境的极限/高风险程度：高速、高空、水下、恶劣天气等"
+      },
+      {
+        "key": "gear_visibility",
+        "name": "装备可见度",
+        "description": "画面中运动装备/相机设备本身的展示程度（是否直接可见自拍杆、相机、护具等）"
+      },
+      {
+        "key": "narrative_pace",
+        "name": "叙事节奏",
+        "description": "剪辑快慢与信息密度：数值越高节奏越快（快切、密集信息），越低越舒缓（长镜头、慢节奏）"
+      },
+      {
+        "key": "scene_diversity",
+        "name": "场景多样性",
+        "description": "单条视频内场景/地点切换的丰富程度"
+      },
+      {
+        "key": "slow_motion_demand",
+        "name": "子弹时间/慢动作需求",
+        "description": "视频中使用慢动作、高速摄影或环绕定格（子弹时间）效果的倾向程度"
+      }
+    ],
+    "products": [
+      {
+        "id": "x5",
+        "name": "Insta360 X5",
+        "description": "双镜头360°全景运动相机，主打第一人称沉浸视角、隐形自拍杆与高强度防抖，适配高风险极限场景",
+        "vector": [
+          0.9,
+          0.95,
+          0.7,
+          0.85,
+          0.3,
+          0.5,
+          0.5,
+          0.6
+        ]
+      },
+      {
+        "id": "go3s",
+        "name": "Insta360 GO 3S",
+        "description": "拇指大小的可穿戴微型相机，主打极致第一人称视角与轻量随身拍摄，弱化装备存在感",
+        "vector": [
+          0.95,
+          0.8,
+          0.4,
+          0.5,
+          0.1,
+          0.4,
+          0.4,
+          0.3
+        ]
+      },
+      {
+        "id": "ace_pro2",
+        "name": "Insta360 Ace Pro 2",
+        "description": "传统机身式运动相机，主打高强度防抖、低光表现与极限场景耐用性，装备本身常在画面中可见（头盔/支架安装）",
+        "vector": [
+          0.6,
+          0.9,
+          0.55,
+          0.9,
+          0.7,
+          0.5,
+          0.45,
+          0.35
+        ]
+      },
+      {
+        "id": "flow2pro",
+        "name": "Insta360 Flow 2 Pro",
+        "description": "手机云台稳定器，主打平滑运镜与叙事型内容，非第一人称场景，适合中等强度运动与日常vlog",
+        "vector": [
+          0.15,
+          0.85,
+          0.8,
+          0.3,
+          0.8,
+          0.6,
+          0.55,
+          0.2
+        ]
+      }
+    ]
+  },
+  "sunscreen": {
+    "label": "Sunscreen",
+    "status": "ready",
+    "dimensions": [
+      {
+        "key": "sun_exposure",
+        "name": "日照暴露程度",
+        "description": "内容中人物处于强日照/户外环境的比例 —— 防晒需求的最直接前提"
+      },
+      {
+        "key": "skin_visibility",
+        "name": "皮肤可见度",
+        "description": "画面中面部/肢体皮肤的展示程度 —— 决定防晒效果能否被观众直观看到"
+      },
+      {
+        "key": "ingredient_depth",
+        "name": "成分讲解深度",
+        "description": "创作者讨论产品成分/原理的深入程度 —— 高值适合主打配方的产品，低值适合主打体感的产品"
+      },
+      {
+        "key": "authenticity",
+        "name": "内容真实感",
+        "description": "内容呈现为真实使用体验而非广告腔的程度 —— 直接影响带货可信度"
+      },
+      {
+        "key": "demo_friendliness",
+        "name": "产品演示适配度",
+        "description": "内容形式适合展示涂抹、质地、上脸效果的程度"
+      },
+      {
+        "key": "reapplication_context",
+        "name": "补涂场景契合度",
+        "description": "内容中出现出汗、下水、长时间户外等需要补涂场景的程度 —— 防水/持久卖点的落点"
+      },
+      {
+        "key": "audience_female_skew",
+        "name": "受众护肤倾向",
+        "description": "受众对护肤话题的关注程度（由内容选题与互动语境推断，不是性别标签）"
+      },
+      {
+        "key": "narrative_pace",
+        "name": "叙事节奏",
+        "description": "剪辑快慢与信息密度：数值越高节奏越快，越低越舒缓"
+      }
+    ],
+    "products": [
+      {
+        "id": "outdoor_spf50",
+        "name": "Outdoor Sport SPF50+ (prototype)",
+        "description": "面向高强度户外运动的防水抗汗防晒，主打持久、不脱妆、涉水场景补涂友好",
+        "vector": [
+          0.95,
+          0.7,
+          0.4,
+          0.7,
+          0.5,
+          0.95,
+          0.4,
+          0.6
+        ]
+      },
+      {
+        "id": "daily_essence",
+        "name": "Daily Skincare Sunscreen Essence (prototype)",
+        "description": "面向日常通勤的精华质地防晒，主打肤感轻薄、可作妆前、成分温和",
+        "vector": [
+          0.4,
+          0.9,
+          0.85,
+          0.6,
+          0.95,
+          0.25,
+          0.9,
+          0.5
+        ]
+      },
+      {
+        "id": "kids_mineral",
+        "name": "Kids Mineral Sunscreen (prototype)",
+        "description": "面向儿童的物理防晒，主打成分安全、无刺激、家庭户外场景",
+        "vector": [
+          0.75,
+          0.6,
+          0.9,
+          0.9,
+          0.7,
+          0.7,
+          0.7,
+          0.35
+        ]
+      }
+    ]
+  },
+  "supplement": {
+    "label": "Supplements",
+    "status": "ready",
+    "dimensions": [
+      {
+        "key": "training_intensity",
+        "name": "训练强度",
+        "description": "内容中展示的训练负荷与专业程度"
+      },
+      {
+        "key": "physique_visibility",
+        "name": "身体呈现度",
+        "description": "内容中身体状态/体态变化的展示程度 —— 补剂效果的直观载体"
+      },
+      {
+        "key": "science_rigor",
+        "name": "科学严谨度",
+        "description": "创作者引用研究、讲解机理的深入与克制程度 —— 高值适合成分党产品"
+      },
+      {
+        "key": "nutrition_focus",
+        "name": "营养话题占比",
+        "description": "内容中饮食/补剂话题相对训练动作的比重"
+      },
+      {
+        "key": "audience_experience",
+        "name": "受众训练阶段",
+        "description": "受众的训练年限与专业度 —— 决定该推入门产品还是进阶产品"
+      },
+      {
+        "key": "authenticity",
+        "name": "内容真实感",
+        "description": "内容呈现为真实训练与真实使用体验而非广告腔的程度"
+      },
+      {
+        "key": "demo_friendliness",
+        "name": "产品演示适配度",
+        "description": "内容形式适合展示冲泡、口味、随身携带等使用过程的程度"
+      },
+      {
+        "key": "narrative_pace",
+        "name": "叙事节奏",
+        "description": "剪辑快慢与信息密度：数值越高节奏越快，越低越舒缓"
+      }
+    ],
+    "products": [
+      {
+        "id": "whey_isolate",
+        "name": "Whey Protein Isolate (prototype)",
+        "description": "分离乳清蛋白，主打高蛋白含量、低乳糖、口味与溶解性，面向增肌人群",
+        "vector": [
+          0.8,
+          0.85,
+          0.6,
+          0.9,
+          0.6,
+          0.7,
+          0.85,
+          0.5
+        ]
+      },
+      {
+        "id": "creatine_mono",
+        "name": "Creatine Monohydrate (prototype)",
+        "description": "一水肌酸，主打证据充分、无风味可混合、性价比高，面向进阶训练者",
+        "vector": [
+          0.9,
+          0.6,
+          0.95,
+          0.7,
+          0.85,
+          0.8,
+          0.4,
+          0.4
+        ]
+      },
+      {
+        "id": "electrolyte_mix",
+        "name": "Electrolyte Hydration Mix (prototype)",
+        "description": "电解质冲剂，主打耐力场景补水、无糖、便携，面向跑者与户外训练者",
+        "vector": [
+          0.75,
+          0.35,
+          0.55,
+          0.6,
+          0.45,
+          0.85,
+          0.75,
+          0.6
+        ]
+      }
+    ]
+  }
+}

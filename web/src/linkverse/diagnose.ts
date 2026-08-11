@@ -1,4 +1,5 @@
 import { CATEGORIES, type CategoryId } from "./categories";
+import type { Catalog } from "./catalog";
 
 /** The visitor's own product, placed on the active category's axes. When
  *  present, the ranking is recomputed against it instead of showing the
@@ -59,9 +60,15 @@ function summarize(categoryId: CategoryId | null, product: string, creatorType?:
 // live-demo requirement — see Onboarding.tsx's manual-fallback UI).
 export async function diagnoseCompany(
   conversation: ConversationTurn[],
-  // The active category's axes, from the dataset meta. Sent so the model can
-  // place the visitor's product on the same axes the creators were scored on.
-  dimensions?: { key: string; name: string; description: string }[],
+  // Every category's axes, keyed by id (from catalog.ts) — NOT just the
+  // currently-loaded category's. The model only learns which category fits
+  // once the conversation ends, so sending a single category's axes upfront
+  // meant a non-default category's product got scored against the WRONG
+  // category's semantics (e.g. a sunscreen product placed on action-camera's
+  // "gear visibility" axis) — same array length, silently meaningless values.
+  // Sending the full map lets /api/diagnose pick the right axis set after it
+  // decides the category.
+  dimensionsByCategory?: Catalog,
 ): Promise<DiagnosisResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -70,7 +77,14 @@ export async function diagnoseCompany(
     const res = await fetch("/api/diagnose", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversation, dimensions }),
+      body: JSON.stringify({
+        conversation,
+        dimensionsByCategory: dimensionsByCategory
+          ? Object.fromEntries(
+              Object.entries(dimensionsByCategory).map(([id, entry]) => [id, entry!.dimensions]),
+            )
+          : undefined,
+      }),
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`/api/diagnose responded ${res.status}`);

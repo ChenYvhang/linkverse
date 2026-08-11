@@ -100,6 +100,15 @@ python -m pipeline.build   --category sunscreen     # -> data/sunscreen/dataset.
 cd web && npm run build:data -- --category sunscreen # -> public/linkverse/sunscreen.json
 ```
 
+`python -m pipeline.export_catalog` (no `--category` — it covers every registered category in one
+pass) writes `web/public/linkverse/catalog.json`: each category's product vectors and axis
+definitions, read straight from `products.yaml`/`dimensions.yaml`. It has no dependency on any of
+the stages above, so it can — and should — be rerun any time a category's products or dimensions
+change, even before that category has been collected once. The onboarding chat's "jump straight to
+a product" tags and its free-text productVector scoring both read this file (see "Onboarding chat"
+under "Local development" below); it's the only thing standing between a fresh clone and a working
+chat.
+
 Note that **P (potential) is category-independent** and R (resonance) is not: potential is pure
 channel dynamics — growth, momentum, seasonality — which mean the same thing whatever you are
 selling. Only resonance is scored per space.
@@ -176,6 +185,7 @@ Demo/
 │   ├── translate_variants.py      # Stage5c English translation of creative_variants for non-Top-20 creators
 │   ├── translate_content.py       # Stage5d English translation of vision evidence + decision free text
 │   ├── build.py                   # Stage6 merges every stage's output -> data/<category>/dataset.json
+│   ├── export_catalog.py          # products.yaml + dimensions.yaml, every category -> web/public/linkverse/catalog.json
 │   ├── validate.py                # REFACTOR_PLAN.md gate: age bias / seasonal leakage / GroupKFold, etc.
 │   ├── adapters/
 │   │   ├── platform_base.py       # PlatformAdapter abstract base (YouTube is the only implementation)
@@ -201,11 +211,12 @@ Demo/
 │   ├── scripts/build-linkverse.mjs # data/<category>/dataset.json -> the app's trimmed JSON
 │   ├── public/
 │   │   ├── linkverse.json          # trimmed, English-only dataset the app actually fetches
-│   │   └── linkverse/*.json        # per-category datasets (sunscreen/supplement: placeholders)
+│   │   ├── linkverse/*.json        # per-category datasets (sunscreen/supplement: placeholders)
+│   │   └── linkverse/catalog.json  # every category's product vectors + axes (pipeline/export_catalog.py)
 │   └── src/
 │       ├── main.tsx                 # entry point — renders LinkVerse directly, no router
 │       ├── linkverse.css            # light "viewfinder" theme
-│       └── linkverse/                # the whole app: LinkVerse.tsx / Scope.tsx / Kit.tsx / Onboarding.tsx / useData.ts
+│       └── linkverse/                # the whole app: LinkVerse.tsx / Scope.tsx / Kit.tsx / Onboarding.tsx / useData.ts / catalog.ts
 ├── .github/workflows/deploy-web.yml # GitHub Pages workflow (not currently enabled for this repo)
 ├── PLAN.md                          # original implementation plan (incl. the four-layer architecture decisions)
 └── REFACTOR_PLAN.md                 # prediction-layer/backtest-methodology rework (5 recorded open decisions)
@@ -331,6 +342,7 @@ python -m pipeline.scripts --top-n 20
 python -m pipeline.translate_variants --limit 3
 python -m pipeline.translate_content --limit 3
 python -m pipeline.build                             # merges everything into data/action_camera/dataset.json
+python -m pipeline.export_catalog                    # -> web/public/linkverse/catalog.json (all categories)
 ```
 
 ### Frontend
@@ -342,6 +354,26 @@ npm run build:data   # regenerates web/public/linkverse.json from data/action_ca
 npm run dev           # http://localhost:5173/
 npm run build          # tsc -b && vite build
 ```
+
+### Onboarding chat
+
+The landing chat has two paths into the results page, both ending at the same re-scored ranking
+(`web/src/linkverse/LinkVerse.tsx`'s `rescore()` — centered cosine similarity against whichever
+product vector it's handed):
+
+- **Tag a known product** — the chips above the chat input, one per product in
+  `web/public/linkverse/catalog.json`. Clicking one calls `onDiagnosed()` immediately with that
+  product's real, hand-defined vector (same one `score.py` uses) — no network call, no DeepSeek,
+  instant.
+- **Describe it in free text** — `web/src/linkverse/Onboarding.tsx` sends the whole conversation
+  plus *every* category's axis definitions to `web/api/diagnose.ts`, which asks DeepSeek to
+  determine the category and then place the product on that category's axes specifically (not
+  whichever category the browser happens to have loaded — see the comment on
+  `buildVectorInstruction` in that file for the bug this avoids). The resulting `productVector`
+  drives the same `rescore()`.
+
+Both paths need `catalog.json` to exist — regenerate it with `python -m pipeline.export_catalog`
+after editing any category's `products.yaml` or `dimensions.yaml`.
 
 ---
 

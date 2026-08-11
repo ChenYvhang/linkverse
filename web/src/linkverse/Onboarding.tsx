@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES, type CategoryId } from "./categories";
 import { diagnoseCompany, type ConversationTurn, type DiagnosisResult, type ProductMatch } from "./diagnose";
-import { DEMO_SCENARIOS, type DemoScenario } from "./demoScenarios";
+import { useCatalog, type CatalogProduct } from "./catalog";
 
 // The very first message is static (no point calling the model before the
 // user has said anything). Every turn after that is fully dynamic — the model
@@ -17,24 +17,20 @@ const OPENING_PLACEHOLDER = "e.g. We make action cameras for extreme sports";
 // continuing to ask questions.
 const MAX_TURNS = 9;
 
-// Pacing for the scripted demo-scenario playback — enough to read as a real
-// back-and-forth, short enough not to drag during a live presentation.
-const SCENARIO_BEAT_MS = 550;
-const SCENARIO_THINK_MS = 900;
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 type ChatMessage = { role: "assistant" | "user"; text: string };
 type Diagnosis = Extract<DiagnosisResult, { done: true; ok: true }>;
 
 export default function Onboarding({
   onDiagnosed,
-  dimensions,
 }: {
   onDiagnosed: (categoryId: CategoryId | null, match?: ProductMatch) => void;
-  /** The active category's axes, forwarded to /api/diagnose so the model can
-   *  place the visitor's product on them. */
-  dimensions?: { key: string; name: string; description: string }[];
 }) {
+  // Every category's product catalog (real, pre-vectorized products from
+  // pipeline/config/categories/<id>/products.yaml) and axis definitions —
+  // powers both the quick-pick tags below and the free-text chat's
+  // productVector instruction (see pickProduct/runDiagnosis). Independent of
+  // whichever category's (heavy) creator dataset LinkVerse has loaded.
+  const catalog = useCatalog();
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", text: OPENING_QUESTION },
   ]);
@@ -45,9 +41,6 @@ export default function Onboarding({
   const [input, setInput] = useState("");
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
-  // True while a scripted demo scenario is playing itself out — no network
-  // calls happen during this, see playScenario().
-  const [playingScenario, setPlayingScenario] = useState(false);
   // Set when diagnoseCompany() couldn't complete (network error, timeout,
   // missing API key, etc). Never show a blank/stuck chat — let the presenter
   // pick a category by hand and keep the demo moving.
@@ -66,12 +59,12 @@ export default function Onboarding({
   // the input's usable again so the next answer can be typed immediately,
   // no click required.
   useEffect(() => {
-    if (!diagnosing && !diagnosis && !manualFallback && !playingScenario) inputRef.current?.focus();
-  }, [diagnosing, diagnosis, manualFallback, playingScenario]);
+    if (!diagnosing && !diagnosis && !manualFallback) inputRef.current?.focus();
+  }, [diagnosing, diagnosis, manualFallback]);
 
   async function runDiagnosis(conv: ConversationTurn[], turnsSoFar: number) {
     setDiagnosing(true);
-    const result = await diagnoseCompany(conv, dimensions);
+    const result = await diagnoseCompany(conv, catalog ?? undefined);
     setDiagnosing(false);
 
     if (!result.done) {
@@ -103,7 +96,7 @@ export default function Onboarding({
 
   async function submitAnswer(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || diagnosing || diagnosis || manualFallback || playingScenario) return;
+    if (!trimmed || diagnosing || diagnosis || manualFallback) return;
 
     const userMsg: ChatMessage = { role: "user", text: trimmed };
     const convWithAnswer = [...conversation, userMsg];
@@ -122,44 +115,31 @@ export default function Onboarding({
     void submitAnswer(input);
   }
 
-  // Plays out a fully pre-written conversation (both sides) and lands on a
-  // hardcoded result — deliberately bypasses /api/diagnose entirely so a
-  // live demo never depends on the LLM being reachable. See demoScenarios.ts.
-  async function playScenario(scenario: DemoScenario) {
-    if (diagnosing || diagnosis || manualFallback || playingScenario) return;
-    setPlayingScenario(true);
-    setManualFallback(false);
-    matchRef.current = null;
-    setMessages([{ role: "assistant", text: scenario.questions[0] }]);
-    setConversation([{ role: "assistant", text: scenario.questions[0] }]);
-    setTurnCount(0);
-    setInput("");
-
-    for (let i = 0; i < scenario.answers.length; i++) {
-      await sleep(SCENARIO_BEAT_MS);
-      setMessages((m) => [...m, { role: "user", text: scenario.answers[i] }]);
-      const nextQuestion = scenario.questions[i + 1];
-      if (nextQuestion) {
-        await sleep(SCENARIO_BEAT_MS);
-        setMessages((m) => [...m, { role: "assistant", text: nextQuestion }]);
-      }
-    }
-
-    setDiagnosing(true);
-    await sleep(SCENARIO_THINK_MS);
-    setDiagnosing(false);
-
+  // Jumps straight to results for a known, pre-vectorized product (see
+  // catalog.ts) — no /api/diagnose call, no waiting on DeepSeek. This is the
+  // fast path: onDiagnosed() fires immediately with a real product vector,
+  // so the ranking below is genuinely re-scored for that exact product (via
+  // LinkVerse's rescore()), not just a generic precomputed list.
+  function pickProduct(categoryId: CategoryId, product: CatalogProduct) {
+    if (diagnosing || diagnosis || manualFallback) return;
+    const match: ProductMatch = { product: product.name, vector: product.vector };
+    const summary = `Jumping straight to results for ${product.name}.`;
+    matchRef.current = match;
+    setMessages((m) => [
+      ...m,
+      { role: "user", text: `Show me results for ${product.name}` },
+      { role: "assistant", text: summary },
+    ]);
     setDiagnosis({
       done: true,
       ok: true,
-      categoryId: scenario.categoryId,
-      confidence: scenario.confidence,
-      summary: scenario.summary,
-      productVector: null,
-      product: "",
+      categoryId,
+      confidence: 1,
+      summary,
+      productVector: product.vector,
+      product: product.name,
     });
-    setMessages((m) => [...m, { role: "assistant", text: scenario.summary }]);
-    setPlayingScenario(false);
+    onDiagnosed(categoryId, match);
   }
 
   function handleManualPick(id: CategoryId) {
@@ -177,21 +157,34 @@ export default function Onboarding({
     ? CATEGORIES.find((c) => c.id === diagnosis.categoryId)?.label ?? null
     : null;
 
+  // Flattened for rendering: every ready category's known products, each
+  // tagged with which category it jumps to. Onboarding-status categories are
+  // skipped — their creator dataset doesn't exist yet, so a tag for them
+  // would jump straight into an empty/locked results page.
+  const productTags = useMemo(() => {
+    if (!catalog) return [];
+    return CATEGORIES.filter((c) => c.status === "ready").flatMap((c) => {
+      const entry = catalog[c.id];
+      return entry ? entry.products.map((p) => ({ categoryId: c.id, product: p })) : [];
+    });
+  }, [catalog]);
+
   return (
     <section className="border-y border-line bg-gradient-to-b from-paper via-accent/[0.03] to-surface">
       <div className="max-w-3xl mx-auto px-6 pt-2 pb-20">
-        {!done && !manualFallback && (
+        {!done && !manualFallback && productTags.length > 0 && (
           <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
-            <span className="text-[11px] text-muted">Start with example:</span>
-            {DEMO_SCENARIOS.map((s) => (
+            <span className="text-[11px] text-muted">Know your product? Jump straight in:</span>
+            {productTags.map(({ categoryId, product }) => (
               <button
-                key={s.categoryId}
-                onClick={() => void playScenario(s)}
-                disabled={diagnosing || playingScenario}
+                key={`${categoryId}:${product.id}`}
+                onClick={() => pickProduct(categoryId, product)}
+                disabled={diagnosing}
+                title={`${CATEGORIES.find((c) => c.id === categoryId)?.label ?? categoryId} — ${product.name}`}
                 className="text-[11px] font-semibold text-accent border border-accent/30 rounded-full px-2.5 py-0.5
                   hover:bg-accent-fill hover:text-white transition-colors disabled:opacity-50"
               >
-                ⚡ {s.buttonLabel}
+                🏷 {product.name}
               </button>
             ))}
           </div>
@@ -246,14 +239,14 @@ export default function Onboarding({
                     placeholder={placeholder}
                     aria-label="Your answer"
                     autoFocus
-                    disabled={diagnosing || playingScenario}
+                    disabled={diagnosing}
                     className="w-full bg-surface rounded-2xl px-6 py-5 text-lg text-ink
                       placeholder:text-muted focus:outline-none disabled:opacity-60"
                   />
                 </div>
                 <button
                   type="submit"
-                  disabled={diagnosing || playingScenario}
+                  disabled={diagnosing}
                   className="px-8 py-5 rounded-2xl bg-gradient-to-r from-accent to-accent-2 text-white
                     text-base font-semibold hover:opacity-90 transition-opacity shrink-0 disabled:opacity-60"
                 >
