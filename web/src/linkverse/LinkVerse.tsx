@@ -234,9 +234,16 @@ export default function LinkVerse() {
 
   // Everything below ranks off `creators`, which is the visitor's re-scored
   // ranking when the chat produced a product vector, and the pipeline's
-  // precomputed one otherwise.
+  // precomputed one otherwise. Sorted by combined score either way: rescore()
+  // already returns sorted output, but the plain data.creators branch did
+  // not — dataset.json lists creators in collection order, not score order,
+  // so "Top picks" was silently showing the first 12 array entries rather
+  // than the 12 highest-C ones (confirmed on real data: item 0 had C=24.2
+  // while the highest C in the whole set was 90.9). Sorting unconditionally
+  // here, rather than relying on each branch to do it right, means a future
+  // third branch can't reintroduce the same bug.
   const creators = useMemo(
-    () => (data ? (match ? rescore(data.creators, match) : data.creators) : []),
+    () => (data ? [...(match ? rescore(data.creators, match) : data.creators)].sort((a, b) => b.C - a.C) : []),
     [data, match],
   );
   const shown = useMemo(() => applyFilters(creators, filters), [creators, filters]);
@@ -679,7 +686,9 @@ function LockedPreview({
   category?: CategoryDef;
   onBack: () => void;
 }) {
-  const top = mockData.creators.slice(0, 12);
+  // Same fix as the real results screen: dataset.json isn't in score order,
+  // so this needs an explicit sort rather than a blind slice.
+  const top = [...mockData.creators].sort((a, b) => b.C - a.C).slice(0, 12);
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
