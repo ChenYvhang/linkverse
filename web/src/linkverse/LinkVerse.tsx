@@ -754,18 +754,51 @@ function PreparingBadge({ label }: { label: string }) {
   );
 }
 
+const PREMIUM_FEATURES: { label: string; free: boolean }[] = [
+  { label: "Blurred preview of creator matches", free: true },
+  { label: "Full ranked creator list", free: false },
+  { label: "Interactive evidence chart", free: false },
+  { label: "Filters and creator search", free: false },
+  { label: "Personalized outreach kits", free: false },
+];
+
 function PaywallOverlay() {
   return (
-    <div className="bg-surface border border-accent/30 rounded-2xl shadow-xl px-8 py-6 text-center max-w-sm">
+    <div className="bg-surface border border-accent/30 rounded-2xl shadow-xl px-6 py-6 text-center max-w-md w-full">
+      <div className="text-2xl mb-2" aria-hidden="true">🔒</div>
       <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-2">Premium</div>
       <p className="font-display font-bold text-ink text-lg">Unlock custom creator matching</p>
       <p className="num text-3xl font-bold text-gradient mt-2">$7<span className="text-sm text-muted">/month</span></p>
       <p className="text-sm text-muted mt-2 mb-4">
         Custom company searches and full creator rankings are available with LinkVerse Premium.
       </p>
+
+      <div className="overflow-x-auto mb-5">
+        <table className="w-full text-xs text-left">
+          <thead>
+            <tr className="text-muted border-b border-line">
+              <th className="py-1.5 pr-2 font-medium">What you get</th>
+              <th className="py-1.5 px-2 font-medium text-center w-16">Free</th>
+              <th className="py-1.5 pl-2 font-medium text-center text-accent w-20">Premium</th>
+            </tr>
+          </thead>
+          <tbody>
+            {PREMIUM_FEATURES.map(({ label, free }) => (
+              <tr key={label} className="border-b border-line/60 last:border-0">
+                <td className="py-1.5 pr-2 text-ink">{label}</td>
+                <td className={`py-1.5 px-2 text-center ${free ? "text-success" : "text-muted"}`}>
+                  {free ? "✓" : "–"}
+                </td>
+                <td className="py-1.5 pl-2 text-center text-success font-semibold">✓</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <button disabled className="text-sm font-semibold text-white bg-accent-fill rounded-lg px-5 py-2 opacity-60 cursor-not-allowed">
         Premium access coming soon
       </button>
+      <p className="text-xs text-muted mt-3">Demo only — no payment is collected.</p>
     </div>
   );
 }

@@ -16,7 +16,9 @@ const OPENING_PLACEHOLDER = "e.g. We make action cameras for extreme sports";
 // after this many user turns, force a finalize (honest no-match) instead of
 // continuing to ask questions.
 const MAX_TURNS = 9;
-const DEMO_STEP_MS = 650;
+const DEMO_USER_PAUSE_MS = 450;
+const DEMO_ASSISTANT_PAUSE_MS = 850;
+const DEMO_FINISH_PAUSE_MS = 650;
 
 type DemoPreset = {
   categoryId: CategoryId;
@@ -33,7 +35,9 @@ const DEMO_PRESETS: DemoPreset[] = [
     turns: [
       { role: "user", text: "We build action cameras for people who film outdoor sports." },
       { role: "assistant", text: "That sounds made for active, immersive content. Which product are you promoting?" },
-      { role: "user", text: "The Insta360 X5. We want authentic adventure creators who use POV footage." },
+      { role: "user", text: "The Insta360 X5. Its immersive 360° POV, invisible selfie-stick shots, and stabilization are made for demanding outdoor scenes." },
+      { role: "assistant", text: "That gives the product a clear visual identity. What kind of creator should represent it?" },
+      { role: "user", text: "Authentic skiing, surfing, and mountain-biking creators who already use first-person footage." },
       { role: "assistant", text: "Perfect — I’ll rank creators whose filming style naturally fits the Insta360 X5." },
     ],
   },
@@ -44,8 +48,10 @@ const DEMO_PRESETS: DemoPreset[] = [
     turns: [
       { role: "user", text: "We make skincare for athletes and people who spend all day outdoors." },
       { role: "assistant", text: "Outdoor use gives us a clear direction. Which product should this campaign feature?" },
-      { role: "user", text: "Our sweat-resistant SPF50+. We want credible outdoor creators with a natural style." },
-      { role: "assistant", text: "Great — I’ll look for creators whose real outdoor routines make that protection relevant." },
+      { role: "user", text: "Our water- and sweat-resistant Outdoor Sport SPF50+ for high-intensity activity." },
+      { role: "assistant", text: "That product belongs in real sun, sweat, and water situations. Who should tell that story?" },
+      { role: "user", text: "Credible hiking, trail-running, and cycling creators with a natural, practical style." },
+      { role: "assistant", text: "Great — I’ll look for creators whose outdoor routines make that protection relevant." },
     ],
   },
   {
@@ -55,7 +61,9 @@ const DEMO_PRESETS: DemoPreset[] = [
     turns: [
       { role: "user", text: "We make practical sports nutrition for people who train consistently." },
       { role: "assistant", text: "That gives me the audience. Which product are you launching?" },
-      { role: "user", text: "A whey protein isolate. We want trustworthy fitness creators who explain products clearly." },
+      { role: "user", text: "A high-protein, low-lactose whey isolate for strength and muscle-building routines." },
+      { role: "assistant", text: "Clear and useful. What kind of creator would make the collaboration feel credible?" },
+      { role: "user", text: "Trustworthy fitness creators who share real training and explain products without overclaiming." },
       { role: "assistant", text: "Understood — I’ll prioritize credible fitness voices with a natural fit for protein content." },
     ],
   },
@@ -93,6 +101,8 @@ export default function Onboarding({
   // pick a category by hand and keep the demo moving.
   const [manualFallback, setManualFallback] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const demoTimerRef = useRef<number | null>(null);
 
@@ -101,15 +111,16 @@ export default function Onboarding({
   }, []);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, diagnosing]);
+    if (demoPlaying) bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    else scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, diagnosing, demoPlaying]);
 
   // `disabled` drops focus while waiting on the model; restore it the moment
   // the input's usable again so the next answer can be typed immediately,
   // no click required.
   useEffect(() => {
-    if (!diagnosing && !diagnosis && !manualFallback) inputRef.current?.focus();
-  }, [diagnosing, diagnosis, manualFallback]);
+    if (!diagnosing && !demoPlaying && !diagnosis && !manualFallback) inputRef.current?.focus();
+  }, [diagnosing, demoPlaying, diagnosis, manualFallback]);
 
   async function runDiagnosis(conv: ConversationTurn[], turnsSoFar: number) {
     setDiagnosing(true);
@@ -175,24 +186,27 @@ export default function Onboarding({
     const match: ProductMatch = { product: product.name, vector: product.vector };
     setManualFallback(false);
     setDemoPlaying(true);
-    setMessages([{ role: "assistant", text: OPENING_QUESTION }]);
+    setMessages([]);
+    boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
 
     const advance = (index: number) => {
       if (index >= preset.turns.length) {
-        const summary = `Your ${product.name} creator ranking is ready.`;
-        setDiagnosis({
-          done: true,
-          ok: true,
-          categoryId: preset.categoryId,
-          confidence: 1,
-          summary,
-          productVector: product.vector,
-          product: product.name,
-        });
-        setCompletionKind("demo");
-        setDemoPlaying(false);
         setDiagnosing(false);
-        onDiagnosed(preset.categoryId, match);
+        demoTimerRef.current = window.setTimeout(() => {
+          const summary = `Your ${product.name} creator ranking is ready.`;
+          setDiagnosis({
+            done: true,
+            ok: true,
+            categoryId: preset.categoryId,
+            confidence: 1,
+            summary,
+            productVector: product.vector,
+            product: product.name,
+          });
+          setCompletionKind("demo");
+          setDemoPlaying(false);
+          onDiagnosed(preset.categoryId, match);
+        }, DEMO_FINISH_PAUSE_MS);
         return;
       }
 
@@ -202,7 +216,7 @@ export default function Onboarding({
         setMessages((current) => [...current, turn]);
         setDiagnosing(false);
         advance(index + 1);
-      }, DEMO_STEP_MS);
+      }, turn.role === "assistant" ? DEMO_ASSISTANT_PAUSE_MS : DEMO_USER_PAUSE_MS);
     };
 
     advance(0);
@@ -243,11 +257,11 @@ export default function Onboarding({
           </div>
         )}
 
-        <div className="rounded-2xl border border-line bg-surface shadow-lg shadow-accent/[0.06] p-6">
-          {messages.length > 1 && (
+        <div ref={boxRef} className="rounded-2xl border border-line bg-surface shadow-lg shadow-accent/[0.06] p-6">
+          {(demoPlaying || messages.length > 1) && messages.length > 0 && (
             <div ref={scrollRef} className="space-y-2 max-h-72 overflow-y-auto pr-1 mb-4 scroll-smooth">
               {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div key={i} className={`flex animate-rise ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[80%] rounded-xl px-3.5 py-2 text-sm leading-relaxed ${
                       m.role === "user" ? "bg-accent-fill text-white" : "bg-paper border border-line text-ink"
@@ -258,12 +272,13 @@ export default function Onboarding({
                 </div>
               ))}
               {diagnosing && (
-                <div className="flex justify-start">
+                <div className="flex justify-start animate-rise">
                   <div className="max-w-[80%] rounded-xl px-4 py-3 bg-paper border border-line">
                     <TypingDots />
                   </div>
                 </div>
               )}
+              <div ref={bottomRef} />
             </div>
           )}
 
@@ -276,10 +291,10 @@ export default function Onboarding({
             />
           ) : !done ? (
             <>
-              {messages.length === 1 && (
+              {!demoPlaying && messages.length === 1 && (
                 <p className="text-ink font-display font-bold text-xl mb-4 text-center">{messages[0].text}</p>
               )}
-              <form onSubmit={handleSubmit} className="flex gap-3">
+              {!demoPlaying && <form onSubmit={handleSubmit} className="flex gap-3">
                 <div
                   className="flex-1 rounded-2xl p-[2px] bg-gradient-to-r from-accent via-accent-2 to-accent/40
                     focus-within:shadow-[0_0_0_5px_rgba(var(--color-accent-rgb),0.15)] transition-shadow"
@@ -304,7 +319,7 @@ export default function Onboarding({
                 >
                   Send
                 </button>
-              </form>
+              </form>}
             </>
           ) : (
             <div className="rounded-lg border border-accent/25 bg-accent/[0.04] px-4 py-3.5">

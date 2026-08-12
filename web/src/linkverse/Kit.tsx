@@ -54,13 +54,24 @@ function buildBrief(creator: Creator, script: Script | undefined) {
 function buildGmailComposeUrl(creator: Creator, script: Script | undefined) {
   void script;
   const subject = `A collaboration idea for ${creator.title}`;
-  const contentFocus = creator.sport && creator.sport !== "Creator"
-    ? `your ${creator.sport.toLowerCase()} content`
-    : "the thoughtful way you connect with your audience";
+  const topic = creator.vision?.sportTypes.length
+    ? creator.vision.sportTypes.join(" and ").toLowerCase()
+    : creator.sport && creator.sport !== "Creator"
+      ? creator.sport.toLowerCase()
+      : null;
+  const style = [creator.vision?.perspective, creator.vision?.pace]
+    .filter((value): value is string => !!value && value !== "Not available")
+    .map((value) => value.toLowerCase())
+    .join(" and ");
+  const compliment = topic
+    ? `Your ${topic} content${style ? `, especially its ${style} style,` : ""} caught our attention.`
+    : "The thoughtful way you connect with your audience caught our attention.";
   const lines = [
     `Hi ${creator.title},`,
     "",
-    `I've been looking through ${contentFocus}, and I think there could be a natural fit with ${creator.product}.`,
+    compliment,
+    "",
+    `We think there could be a natural fit with ${creator.product}.`,
     "",
     "We'd love to explore a collaboration shaped around your voice and the kind of content your audience already comes to you for. Rather than forcing a fixed concept, we'd be happy to develop the idea with you and make sure it feels useful and authentic.",
     "",
