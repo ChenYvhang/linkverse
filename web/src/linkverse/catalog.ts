@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CategoryId } from "./categories";
+import { englishDimension, englishOr, PRODUCT_DESCRIPTION_EN } from "./english";
 
 export type Dimension = { key: string; name: string; description: string };
 
@@ -33,7 +34,24 @@ export function useCatalog(): Catalog | null {
     fetch(`${import.meta.env.BASE_URL}linkverse/catalog.json`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: Catalog | null) => {
-        if (!cancelled) setCatalog(data);
+        if (cancelled || !data) return;
+        const normalized = Object.fromEntries(
+          Object.entries(data).map(([id, entry]) => [
+            id,
+            {
+              ...entry!,
+              dimensions: entry!.dimensions.map((d) => englishDimension(d.key, d.name, d.description)),
+              products: entry!.products.map((product) => ({
+                ...product,
+                description: englishOr(
+                  product.description,
+                  PRODUCT_DESCRIPTION_EN[product.id] ?? `${product.name} demo product.`,
+                ),
+              })),
+            },
+          ]),
+        ) as Catalog;
+        setCatalog(normalized);
       })
       .catch(() => {
         if (!cancelled) setCatalog(null);

@@ -299,7 +299,16 @@ export default function LinkVerse() {
               live or go stale. The as-of coverage figures live in "How this
               was measured" below, next to the backtest sample counts they
               need to be read alongside anyway. */}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            {revealed && (
+              <button
+                onClick={handleReset}
+                className="text-xs font-semibold text-accent border border-accent/30 rounded-lg px-3 py-1.5
+                  hover:bg-accent-fill hover:text-white transition-colors"
+              >
+                ← Back to chat
+              </button>
+            )}
             <ThemeToggle />
           </div>
         </div>
@@ -694,10 +703,10 @@ function LockedPreview({
     <div className="max-w-6xl mx-auto px-6 py-12">
       <div className="text-center mb-8">
         <div className="text-[11px] uppercase tracking-[0.18em] text-accent font-semibold mb-2">
-          {category ? category.label : "Unsupported category"}
+          {category ? category.label : "Custom search"}
         </div>
         <h1 className="font-display font-bold text-ink text-2xl">
-          {variant === "preparing" ? "This category's rankings are on the way" : "This category isn't unlocked yet"}
+          {variant === "preparing" ? "This category's rankings are on the way" : "Your custom ranking is ready to unlock"}
         </h1>
       </div>
 
@@ -745,58 +754,19 @@ function PreparingBadge({ label }: { label: string }) {
   );
 }
 
-// "Unlock" plays out a fake ~2s payment step, then honestly discloses it's
-// a demo — no card fields, no payment SDK, no network call. Pure UI
-// simulation to show a revenue model exists, nothing more.
-type UnlockPhase = "idle" | "processing" | "done";
-const UNLOCK_SIMULATION_MS = 2000;
-
 function PaywallOverlay() {
-  const [phase, setPhase] = useState<UnlockPhase>("idle");
-
-  useEffect(() => {
-    if (phase !== "processing") return;
-    const timer = setTimeout(() => setPhase("done"), UNLOCK_SIMULATION_MS);
-    return () => clearTimeout(timer);
-  }, [phase]);
-
   return (
     <div className="bg-surface border border-accent/30 rounded-2xl shadow-xl px-8 py-6 text-center max-w-sm">
-      <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-2">Pro plan</div>
-      <p className="font-display font-bold text-ink text-lg">This category unlocks on the Pro plan</p>
-      <p className="text-sm text-muted mt-1.5 mb-4">
-        Get full creator rankings for categories outside the demo set.
+      <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-2">Premium</div>
+      <p className="font-display font-bold text-ink text-lg">Unlock custom creator matching</p>
+      <p className="num text-3xl font-bold text-gradient mt-2">$7<span className="text-sm text-muted">/month</span></p>
+      <p className="text-sm text-muted mt-2 mb-4">
+        Custom company searches and full creator rankings are available with LinkVerse Premium.
       </p>
-
-      {phase === "idle" && (
-        <button
-          onClick={() => setPhase("processing")}
-          className="text-sm font-semibold text-white bg-accent-fill rounded-lg px-5 py-2 hover:opacity-90 transition-opacity"
-        >
-          Unlock
-        </button>
-      )}
-      {phase === "processing" && (
-        <div className="flex items-center justify-center gap-2 text-sm text-muted">
-          <Spinner />
-          Processing payment…
-        </div>
-      )}
-      {phase === "done" && (
-        <p className="text-xs text-muted leading-relaxed">
-          This is demo mode — real payment integration ships in the release version.
-        </p>
-      )}
+      <button disabled className="text-sm font-semibold text-white bg-accent-fill rounded-lg px-5 py-2 opacity-60 cursor-not-allowed">
+        Premium access coming soon
+      </button>
     </div>
-  );
-}
-
-function Spinner() {
-  return (
-    <span
-      className="inline-block w-4 h-4 rounded-full border-2 border-accent/25 border-t-accent animate-spin"
-      aria-hidden="true"
-    />
   );
 }
 

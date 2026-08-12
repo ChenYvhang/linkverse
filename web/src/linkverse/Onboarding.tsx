@@ -16,6 +16,50 @@ const OPENING_PLACEHOLDER = "e.g. We make action cameras for extreme sports";
 // after this many user turns, force a finalize (honest no-match) instead of
 // continuing to ask questions.
 const MAX_TURNS = 9;
+const DEMO_STEP_MS = 650;
+
+type DemoPreset = {
+  categoryId: CategoryId;
+  productId: string;
+  label: string;
+  turns: ChatMessage[];
+};
+
+const DEMO_PRESETS: DemoPreset[] = [
+  {
+    categoryId: "action_camera",
+    productId: "x5",
+    label: "Action camera",
+    turns: [
+      { role: "user", text: "We build action cameras for people who film outdoor sports." },
+      { role: "assistant", text: "That sounds made for active, immersive content. Which product are you promoting?" },
+      { role: "user", text: "The Insta360 X5. We want authentic adventure creators who use POV footage." },
+      { role: "assistant", text: "Perfect — I’ll rank creators whose filming style naturally fits the Insta360 X5." },
+    ],
+  },
+  {
+    categoryId: "sunscreen",
+    productId: "outdoor_spf50",
+    label: "Sunscreen",
+    turns: [
+      { role: "user", text: "We make skincare for athletes and people who spend all day outdoors." },
+      { role: "assistant", text: "Outdoor use gives us a clear direction. Which product should this campaign feature?" },
+      { role: "user", text: "Our sweat-resistant SPF50+. We want credible outdoor creators with a natural style." },
+      { role: "assistant", text: "Great — I’ll look for creators whose real outdoor routines make that protection relevant." },
+    ],
+  },
+  {
+    categoryId: "supplement",
+    productId: "whey_isolate",
+    label: "Protein powder",
+    turns: [
+      { role: "user", text: "We make practical sports nutrition for people who train consistently." },
+      { role: "assistant", text: "That gives me the audience. Which product are you launching?" },
+      { role: "user", text: "A whey protein isolate. We want trustworthy fitness creators who explain products clearly." },
+      { role: "assistant", text: "Understood — I’ll prioritize credible fitness voices with a natural fit for protein content." },
+    ],
+  },
+];
 
 type ChatMessage = { role: "assistant" | "user"; text: string };
 type Diagnosis = Extract<DiagnosisResult, { done: true; ok: true }>;
@@ -41,15 +85,18 @@ export default function Onboarding({
   const [input, setInput] = useState("");
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+  const [demoPlaying, setDemoPlaying] = useState(false);
   // Set when diagnoseCompany() couldn't complete (network error, timeout,
   // missing API key, etc). Never show a blank/stuck chat — let the presenter
   // pick a category by hand and keep the demo moving.
   const [manualFallback, setManualFallback] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Held in a ref, not state: it is read once when handing off to the parent
-  // and never rendered, so it should not schedule a re-render.
-  const matchRef = useRef<ProductMatch | null>(null);
+  const demoTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (demoTimerRef.current !== null) window.clearTimeout(demoTimerRef.current);
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -86,17 +133,13 @@ export default function Onboarding({
       return;
     }
 
-    matchRef.current =
-      result.productVector && result.productVector.length > 0
-        ? { product: result.product, vector: result.productVector }
-        : null;
     setDiagnosis(result);
     setMessages((m) => [...m, { role: "assistant", text: result.summary }]);
   }
 
   async function submitAnswer(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || diagnosing || diagnosis || manualFallback) return;
+    if (!trimmed || diagnosing || demoPlaying || diagnosis || manualFallback) return;
 
     const userMsg: ChatMessage = { role: "user", text: trimmed };
     const convWithAnswer = [...conversation, userMsg];
@@ -115,40 +158,44 @@ export default function Onboarding({
     void submitAnswer(input);
   }
 
-  // Jumps straight to results for a known, pre-vectorized product (see
-  // catalog.ts) — no /api/diagnose call, no waiting on DeepSeek. This is the
-  // fast path: onDiagnosed() fires immediately with a real product vector,
-  // so the ranking below is genuinely re-scored for that exact product (via
-  // LinkVerse's rescore()), not just a generic precomputed list.
-  function pickProduct(categoryId: CategoryId, product: CatalogProduct) {
-    if (diagnosing || diagnosis || manualFallback) return;
+  // The three stage-safe demos never call the LLM. They play a short scripted
+  // exchange, then use the catalog's real product vector to enter a genuinely
+  // re-scored result page.
+  function playDemo(preset: DemoPreset, product: CatalogProduct) {
+    if (diagnosing || demoPlaying || diagnosis) return;
     const match: ProductMatch = { product: product.name, vector: product.vector };
-    const summary = `Jumping straight to results for ${product.name}.`;
-    matchRef.current = match;
-    setMessages((m) => [
-      ...m,
-      { role: "user", text: `Show me results for ${product.name}` },
-      { role: "assistant", text: summary },
-    ]);
-    setDiagnosis({
-      done: true,
-      ok: true,
-      categoryId,
-      confidence: 1,
-      summary,
-      productVector: product.vector,
-      product: product.name,
-    });
-    onDiagnosed(categoryId, match);
-  }
-
-  function handleManualPick(id: CategoryId) {
-    const label = CATEGORIES.find((c) => c.id === id)?.label ?? id;
-    const summary = `You picked ${label} manually — no live diagnosis was available.`;
     setManualFallback(false);
-    setDiagnosis({ done: true, ok: true, categoryId: id, confidence: 0, summary, productVector: null, product: "" });
-    setMessages((m) => [...m, { role: "assistant", text: summary }]);
-    onDiagnosed(id, matchRef.current ?? undefined);
+    setDemoPlaying(true);
+    setMessages([{ role: "assistant", text: OPENING_QUESTION }]);
+
+    const advance = (index: number) => {
+      if (index >= preset.turns.length) {
+        const summary = `Your ${product.name} creator ranking is ready.`;
+        setDiagnosis({
+          done: true,
+          ok: true,
+          categoryId: preset.categoryId,
+          confidence: 1,
+          summary,
+          productVector: product.vector,
+          product: product.name,
+        });
+        setDemoPlaying(false);
+        setDiagnosing(false);
+        onDiagnosed(preset.categoryId, match);
+        return;
+      }
+
+      const turn = preset.turns[index];
+      setDiagnosing(turn.role === "assistant");
+      demoTimerRef.current = window.setTimeout(() => {
+        setMessages((current) => [...current, turn]);
+        setDiagnosing(false);
+        advance(index + 1);
+      }, DEMO_STEP_MS);
+    };
+
+    advance(0);
   }
 
   const done = diagnosis !== null;
@@ -157,34 +204,33 @@ export default function Onboarding({
     ? CATEGORIES.find((c) => c.id === diagnosis.categoryId)?.label ?? null
     : null;
 
-  // Flattened for rendering: every ready category's known products, each
-  // tagged with which category it jumps to. Onboarding-status categories are
-  // skipped — their creator dataset doesn't exist yet, so a tag for them
-  // would jump straight into an empty/locked results page.
+  // Exactly one stable preset per demo category. The rest of the product
+  // catalog remains available to the ranking pipeline but is not presented
+  // as a no-LLM shortcut.
   const productTags = useMemo(() => {
     if (!catalog) return [];
-    return CATEGORIES.filter((c) => c.status === "ready").flatMap((c) => {
-      const entry = catalog[c.id];
-      return entry ? entry.products.map((p) => ({ categoryId: c.id, product: p })) : [];
+    return DEMO_PRESETS.flatMap((preset) => {
+      const product = catalog[preset.categoryId]?.products.find((item) => item.id === preset.productId);
+      return product ? [{ preset, product }] : [];
     });
   }, [catalog]);
 
   return (
     <section className="border-y border-line bg-gradient-to-b from-paper via-accent/[0.03] to-surface">
       <div className="max-w-3xl mx-auto px-6 pt-2 pb-20">
-        {!done && !manualFallback && productTags.length > 0 && (
+        {!done && productTags.length > 0 && (
           <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
-            <span className="text-[11px] text-muted">Know your product? Jump straight in:</span>
-            {productTags.map(({ categoryId, product }) => (
+            <span className="text-[11px] text-muted">Try a stable demo:</span>
+            {productTags.map(({ preset, product }) => (
               <button
-                key={`${categoryId}:${product.id}`}
-                onClick={() => pickProduct(categoryId, product)}
-                disabled={diagnosing}
-                title={`${CATEGORIES.find((c) => c.id === categoryId)?.label ?? categoryId} — ${product.name}`}
+                key={`${preset.categoryId}:${product.id}`}
+                onClick={() => playDemo(preset, product)}
+                disabled={diagnosing || demoPlaying}
+                title={`Play the ${preset.label} demo`}
                 className="text-[11px] font-semibold text-accent border border-accent/30 rounded-full px-2.5 py-0.5
                   hover:bg-accent-fill hover:text-white transition-colors disabled:opacity-50"
               >
-                🏷 {product.name}
+                {preset.label}
               </button>
             ))}
           </div>
@@ -215,8 +261,7 @@ export default function Onboarding({
           )}
 
           {manualFallback ? (
-            <ManualCategoryPicker
-              onPick={handleManualPick}
+            <ServiceUnavailable
               onRetry={() => {
                 setManualFallback(false);
                 void runDiagnosis(conversation, turnCount);
@@ -239,14 +284,14 @@ export default function Onboarding({
                     placeholder={placeholder}
                     aria-label="Your answer"
                     autoFocus
-                    disabled={diagnosing}
+                    disabled={diagnosing || demoPlaying}
                     className="w-full bg-surface rounded-2xl px-6 py-5 text-lg text-ink
                       placeholder:text-muted focus:outline-none disabled:opacity-60"
                   />
                 </div>
                 <button
                   type="submit"
-                  disabled={diagnosing}
+                  disabled={diagnosing || demoPlaying}
                   className="px-8 py-5 rounded-2xl bg-gradient-to-r from-accent to-accent-2 text-white
                     text-base font-semibold hover:opacity-90 transition-opacity shrink-0 disabled:opacity-60"
                 >
@@ -260,11 +305,11 @@ export default function Onboarding({
                 Diagnosis
               </div>
               <button
-                onClick={() => onDiagnosed(diagnosis.categoryId, matchRef.current ?? undefined)}
+                onClick={() => onDiagnosed(null)}
                 className="text-sm font-medium text-accent border border-accent/30 rounded-lg px-4 py-2
                   hover:bg-accent-fill hover:text-white transition-colors"
               >
-                {categoryLabel ? `See ${categoryLabel} results →` : "Continue →"}
+                {categoryLabel ? `Continue with ${categoryLabel} →` : "View Premium access →"}
               </button>
             </div>
           )}
@@ -288,35 +333,21 @@ function TypingDots() {
   );
 }
 
-function ManualCategoryPicker({
-  onPick,
+function ServiceUnavailable({
   onRetry,
 }: {
-  onPick: (id: CategoryId) => void;
   onRetry: () => void;
 }) {
   return (
     <div className="rounded-lg border border-warning/40 bg-warning/[0.06] px-4 py-3.5">
       <div className="text-[10px] uppercase tracking-wider text-warning font-semibold mb-1.5">
-        Diagnosis unavailable
+        High traffic
       </div>
       <p className="text-sm text-ink/80 leading-relaxed mb-3">
-        Couldn't reach the diagnosis service just now. Pick a category yourself to keep going:
+        We're seeing a lot of traffic right now. Please try one of the demo products above, or retry in a moment.
       </p>
-      <div className="flex flex-wrap gap-2 mb-3">
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => onPick(c.id)}
-            className="text-sm font-medium text-ink border border-line rounded-lg px-3 py-1.5
-              hover:border-accent hover:text-accent transition-colors"
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
       <button onClick={onRetry} className="text-xs font-medium text-muted hover:text-accent transition-colors">
-        ↻ Try the diagnosis again
+        Try again
       </button>
     </div>
   );

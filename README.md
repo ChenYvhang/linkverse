@@ -10,14 +10,15 @@ sunscreen, and sports supplements.
 - **Live app (Vercel):** https://web-flame-two-76.vercel.app
 - **Static build (GitHub Pages):** https://chenyvhang.github.io/linkverse/
 
-The Vercel deployment runs the DeepSeek-backed onboarding API. The static build still works with
-known-product shortcuts and manual category selection, but it cannot run the serverless chat.
+The Vercel deployment runs the DeepSeek-backed onboarding API. Every build also includes three
+stage-safe scripted demos—action camera, sunscreen, and protein powder—that use real product
+vectors without calling an LLM.
 
 ## What a user can do
 
-1. Pick a known product or describe a company, product, and desired creator in the onboarding chat.
-2. Let LinkVerse select one of the supported categories and place the product on that category's
-   eight semantic axes.
+1. Play one of three scripted product demos, or describe a custom company and product in the onboarding chat.
+2. Demo presets enter real rankings immediately. Custom requests use DeepSeek and end at the
+   blurred Premium preview in the current public demo.
 3. Review a creator ranking based on breakout potential **P** and product resonance **R**.
 4. Filter by market, subscriber band, vertical, competitor risk, or priority.
 5. Open a creator's evidence and outreach kit, including the model rationale, contribution chart,
@@ -44,9 +45,9 @@ npm run dev
 
 Open http://localhost:5173/.
 
-Under plain Vite development, the serverless onboarding endpoint is unavailable. Known-product
-tags still re-score creators immediately, and free-text onboarding falls back to manual category
-selection instead of hanging.
+Under plain Vite development, the serverless onboarding endpoint is unavailable. The three demo
+presets still play their scripted conversations and re-score creators immediately. A free-text
+request shows the high-traffic fallback and points the visitor back to those stable demos.
 
 To run the real free-text onboarding chat locally, put `DEEPSEEK_API_KEY` in `web/.env.local` and
 run the project with the Vercel development server:
@@ -99,10 +100,11 @@ flowchart LR
   such as stabilization demand.
 - **Combined C** is the geometric mean of P and R.
 
-For a visitor's free-text product, DeepSeek first chooses a category and proposes a product vector
-on that category's axes. The browser validates the category and vector shape, then re-ranks creators
-with centered cosine similarity. A malformed or missing vector falls back to a real precomputed
-ranking rather than producing authoritative-looking nonsense.
+Each demo preset uses a checked-in product vector on its category's axes, then re-ranks creators
+with centered cosine similarity. For a custom free-text request, DeepSeek gathers the company,
+product, and desired creator style and classifies the category. The current public demo then shows
+a blurred Premium ($7/month) preview rather than exposing the custom ranking. A failed API call
+shows a plain high-traffic message instead of an error or a fabricated result.
 
 ### Pipeline stages
 
@@ -129,7 +131,7 @@ skipped; the pipeline does not fill gaps with synthetic values.
 - **GLM-4.6V-Flash** analyzes thumbnails and returns a category-specific content vector plus visual
   evidence.
 - **DeepSeek V4 Flash** generates decision cards, outreach scripts, and English translations. It
-  also powers the Vercel onboarding conversation and proposes a product vector for free-text input.
+  also powers custom Vercel onboarding conversations; the three public demo presets do not call it.
 - LightGBM and cosine similarity, not an LLM, produce the creator ranking.
 
 ### AI during development
@@ -316,8 +318,7 @@ linkverse/
 - Only YouTube is connected. TikTok, Douyin, Xiaohongshu, and Bilibili are not implemented.
 - Vision and decision coverage is partial; the frontend ships only creators with decision cards.
 - Product vectors are hand-defined hypotheses, not learned from campaign outcomes.
-- Free-text product vectors are model-generated estimates and are validated structurally, not
-  against ground-truth product-fit labels.
+- Custom free-text matching is represented by a Premium preview; payment integration is not yet implemented.
 - The feedback pipeline records outreach outcomes but does not retrain the potential model yet.
 - There is no real ad-spend, conversion, or ROI attribution dataset, so LinkVerse does not claim
   causal marketing impact.

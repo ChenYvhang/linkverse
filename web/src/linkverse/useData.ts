@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { containsHan, englishDimension, englishName, englishOr } from "./english";
 
 export type Script = {
   platform: string;
@@ -94,6 +95,70 @@ export type Dataset = {
   creators: Creator[];
 };
 
+function normalizeDataset(data: Dataset): Dataset {
+  const livePotential = data.meta.livePotential.available
+    ? {
+        ...data.meta.livePotential,
+        movers: data.meta.livePotential.movers.map((mover) => ({
+          ...mover,
+          title: englishName(mover.title, `Creator ${mover.id.slice(-6)}`),
+        })),
+      }
+    : data.meta.livePotential;
+  return {
+    ...data,
+    meta: {
+      ...data.meta,
+      dimensions: data.meta.dimensions.map((d) => englishDimension(d.key, d.name, d.description)),
+      livePotential,
+    },
+    creators: data.creators.map((creator) => {
+      const scripts = creator.scripts.filter((script) => !containsHan(JSON.stringify(script)));
+      const sport = englishOr(creator.sport, "Creator");
+      const title = englishName(creator.title, `Creator ${creator.id.slice(-6)}`);
+      return {
+        ...creator,
+        title,
+        sport,
+        vertical: creator.vertical && !containsHan(creator.vertical) ? creator.vertical : null,
+        reason: englishOr(
+          creator.reason,
+          `${title} creates ${sport.toLowerCase()} content that aligns with ${creator.product}. Review the source channel before outreach.`,
+        ),
+        price: {
+          ...creator.price,
+          basis: englishOr(
+            creator.price.basis,
+            "Heuristic estimate based on public subscriber count; not a confirmed creator quote.",
+          ),
+        },
+        hasScript: scripts.length > 0,
+        scripts,
+        risk: {
+          ...creator.risk,
+          keywords: creator.risk.keywords.filter((keyword) => !containsHan(keyword)),
+          conclusion: englishOr(
+            creator.risk.conclusion,
+            "No English risk summary is available. Review recent sponsorships before outreach.",
+          ),
+        },
+        vision: creator.vision
+          ? {
+              ...creator.vision,
+              sportTypes: creator.vision.sportTypes.filter((value) => !containsHan(value)),
+              perspective: englishOr(creator.vision.perspective, "Not available"),
+              pace: englishOr(creator.vision.pace, "Not available"),
+              evidence: englishOr(
+                creator.vision.evidence,
+                "Detailed visual evidence is not yet available in English.",
+              ),
+            }
+          : null,
+      };
+    }),
+  };
+}
+
 export type LiveMover = {
   id: string;
   title: string;
@@ -132,7 +197,7 @@ export function useData(dataPath: string) {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
-      .then(setData)
+      .then((value: Dataset) => setData(normalizeDataset(value)))
       .catch((e) => setError(String(e)));
   }, [dataPath]);
 

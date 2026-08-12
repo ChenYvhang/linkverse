@@ -52,19 +52,23 @@ function buildBrief(creator: Creator, script: Script | undefined) {
 // specifically, rather than whatever the OS/browser's default mail handler
 // happens to be (e.g. Outlook).
 function buildGmailComposeUrl(creator: Creator, script: Script | undefined) {
-  const subject = `Collab opportunity — ${creator.product}`;
+  void script;
+  const subject = `A collaboration idea for ${creator.title}`;
+  const contentFocus = creator.sport && creator.sport !== "Creator"
+    ? `your ${creator.sport.toLowerCase()} content`
+    : "the thoughtful way you connect with your audience";
   const lines = [
     `Hi ${creator.title},`,
     "",
-    `We think you'd be a great fit for ${creator.product} — ${creator.reason}`,
+    `I've been looking through ${contentFocus}, and I think there could be a natural fit with ${creator.product}.`,
+    "",
+    "We'd love to explore a collaboration shaped around your voice and the kind of content your audience already comes to you for. Rather than forcing a fixed concept, we'd be happy to develop the idea with you and make sure it feels useful and authentic.",
+    "",
+    "Would you be open to a short conversation? I can share more context and hear what kind of partnership would feel right for your channel.",
+    "",
+    "Best,",
+    "[Your name / team]",
   ];
-  if (script) {
-    lines.push("", script.hook, "", script.caption, "", script.cta);
-  }
-  if (creator.price.min) {
-    lines.push("", `We're working with a budget band of $${creator.price.min}–$${creator.price.max} for this collab.`);
-  }
-  lines.push("", "Let us know if you're interested!", "", "— sent via LinkVerse");
   const body = lines.join("\n");
   const params = new URLSearchParams({ view: "cm", fs: "1", su: subject, body });
   return `https://mail.google.com/mail/?${params.toString()}`;
@@ -148,7 +152,7 @@ export default function Kit({
             ✉ Contact {creator.title} →
           </a>
           <p className="text-[11px] text-muted mt-1.5 text-center leading-snug">
-            Opens a Gmail draft with the message below — look up their contact (e.g. the channel's About
+            Opens a warm, editable Gmail draft — look up their contact (e.g. the channel's About
             page) since we don't have it on file.
           </p>
         </div>
