@@ -1,440 +1,329 @@
 # LinkVerse
 
-> Catch breakout creators before they blow up — find and rank YouTube creators for a brand's
-> influencer marketing (demo scenario: Insta360), and hand back a ready-to-send outreach kit for
-> each one.
+> Put a product in. Get a ranked list of creators who fit the brand and may be about to break out.
 
-**Live**: https://web-flame-two-76.vercel.app (full app, including the onboarding chat's real matching — that
-needs the Vercel serverless function, so it's not on GitHub Pages)
-**Also on GitHub Pages**: https://chenyvhang.github.io/linkverse/ (static host — chat falls back to manual
-category selection, and the tracking pipeline works but is local-only there since Supabase env vars aren't
-set for that build)
+LinkVerse is a working creator-discovery demo for influencer marketing. It collects real YouTube
+channel data, estimates creator potential, measures product fit in a category-specific semantic
+space, and turns the result into an outreach kit. The current build supports action cameras,
+sunscreen, and sports supplements.
 
-A GitHub Pages workflow also exists (`.github/workflows/deploy-web.yml`) but hasn't been verified
-with this repo. Its base path is no longer hardcoded: the workflow passes the repo name to the build
-as `PAGES_BASE`, so a rename can't leave it stale again (it previously still said `/glimmer-scout/`,
-from before the `glimmer-scout` → `linkverse` rename).
+- **Live app (Vercel):** https://web-flame-two-76.vercel.app
+- **Static build (GitHub Pages):** https://chenyvhang.github.io/linkverse/
 
----
+The Vercel deployment runs the DeepSeek-backed onboarding API. The static build still works with
+known-product shortcuts and manual category selection, but it cannot run the serverless chat.
 
-## What this is
+## What a user can do
 
-LinkVerse is an **end-to-end creator-marketing discovery system**: real YouTube data collection,
-feature engineering, multimodal vision analysis, ML scoring, and LLM-generated decisions feed an
-interactive frontend that ranks thousands of sports/action creators by "Potential score P ×
-Resonance score R" and generates a localized outreach script for each one.
+1. Pick a known product or describe a company, product, and desired creator in the onboarding chat.
+2. Let LinkVerse select one of the supported categories and place the product on that category's
+   eight semantic axes.
+3. Review a creator ranking based on breakout potential **P** and product resonance **R**.
+4. Filter by market, subscriber band, vertical, competitor risk, or priority.
+5. Open a creator's evidence and outreach kit, including the model rationale, contribution chart,
+   risk warning, price range, thumbnails, and generated script.
+6. Track what happened after outreach through `tracked -> contacted -> replied -> signed/declined`.
 
-The project's core principle is **honesty over polish**: the pipeline would rather say "not
-analyzed yet" than fabricate data or metrics to look better. Across the four functional layers
-(data / matching / fission / feedback), any field the pipeline hasn't covered for a given channel
-renders as `null` and shows "pending analysis" in the UI — never backfilled with fake data. Model
-metrics that don't look good (a low AUC, a subscriber tier where lift < 1) are reported as-is
-rather than tuned or swapped out to look better. See "Honesty statement" below.
+The shortlist and tracking pipeline work in `localStorage` without an account. When Supabase is
+configured, tracking data syncs to an authenticated account and is isolated per user with Row Level
+Security.
 
-The frontend itself has been rebuilt since the original 4-page build into a simpler **3-screen
-flow — Result → Evidence → Action**: a headline stat up front, a P×R scatter plot with a ranked
-list as evidence, and an outreach kit per creator as the next step. The original 4-page app (with
-a backtest page, a system-status page, and a 7-section creator drawer) has been removed from the
-working tree — it was unreachable from `main.tsx`, and existed twice over (`web/src/{App.tsx,pages,
-components,lib}` plus a verbatim copy in `_original_src/`). Git history still has all of it:
-`git log --diff-filter=D -- _original_src web/src/pages`.
+## Quick start: run the frontend
 
----
+You do **not** need API keys or the Python pipeline to explore the app. The repository includes the
+trimmed JSON datasets used by the frontend.
 
-## Four-layer architecture
-
-The system is described externally as "data layer / matching layer / fission layer / feedback
-layer" — internally, nothing is restructured just to fit that framing, and no layer introduces a
-black-box module that isn't backed by real data.
-
-| Layer | Implementation | How real is it |
-|---|---|---|
-| **Data** | Stage1 collection (YouTube Data API v3) + Stage2 feature engineering | Fully real: real API collection, age bias verified removed (bucket drift slope ≈0.000, under the 0.05 threshold) |
-| **Matching** | Stage3 multimodal vision analysis (GLM-4.6V-Flash) + Stage4 dual-head GBDT potential score P + cosine resonance score R | Real, with an accepted tradeoff: no "pretrained black-box neural matcher" — at demo scale there's no real supervised product-fit label to train one on, so it uses an interpretable, backtestable GBDT + cosine similarity instead |
-| **Fission** | Stage5 decision cards (localized creative variants) + Stage5b full scripts (Top-20) + Stage5c/5d English translation | Real: everything is generated/translated by DeepSeek, not template boilerplate |
-| **Feedback** | Real permutation importance / cosine per-dimension contributions in the outreach kit, plus a "Your pipeline" screen where a creator moves through tracked → contacted → replied → signed/declined with a note. Local-only (`localStorage`) unless the deployment has Supabase configured, in which case it syncs to an account, isolated per user by Postgres Row Level Security — see `supabase/README.md` | `live_with_caveat`: outcome capture is real and, with Supabase, durable and multi-device. It is not yet fed back into training the potential score — the model still learns "did this channel accelerate," not "did contacting them work." Ad-spend/conversion data and ROI attribution still aren't wired up: no real conversion data at demo scale, so no fabricated causal dashboard |
-
----
-
-## Product categories
-
-A **category** is one product vertical. Each owns a *semantic space*: the dimensions vision.py
-scores creators on, the product vectors score.py measures resonance against, the competitor
-keywords the exclusivity rule scans for, and the seed keywords collect.py searches.
-
-These are per-category because a dimension only means something inside its vertical. "Stabilization
-demand" is a strong signal for an action camera and noise for a sunscreen; "sun exposure" is the
-reverse. Since R is `cosine(content_vector, product_vector)`, both vectors have to live in the same
-coordinate system — so **adding a category is not adding rows to products.yaml**. It means defining
-a new set of dimensions and re-running vision analysis for that category's creators. The existing
-351 action-camera vision analyses carry over to a new category not at all.
-
-| Category | Dimensions | Status |
-|---|---|---|
-| `action_camera` | POV ratio, stabilization demand, motion complexity, scene extremity, gear visibility, narrative pace, scene diversity, slow-motion demand | **ready** — 351 creators analyzed |
-| `sunscreen` | sun exposure, skin visibility, ingredient depth, authenticity, demo friendliness, reapplication context, audience skincare lean, narrative pace | `onboarding` — space defined, no data collected yet |
-| `supplement` | training intensity, physique visibility, science rigor, nutrition focus, audience experience, authenticity, demo friendliness, narrative pace | `onboarding` — space defined, no data collected yet |
-
-The two spaces share exactly one dimension key (`narrative_pace`) and it is deliberate that they
-share no more: the same creator's vector is read differently in each space, and gets a different
-ranking.
-
-```
-pipeline/config/
-├── categories.yaml                 # registry: id, label, status, default
-└── categories/<id>/
-    ├── dimensions.yaml             # the semantic space + the vision output schema
-    ├── products.yaml               # product vectors (same order as dimensions) + competitor keywords
-    └── seeds.yaml                  # Stage1 seed keywords
-```
-
-Every stage takes `--category` (default `action_camera`), and every per-channel cache is keyed by
-`(category, channel)` — the same creator can be a candidate in more than one category with a
-different vector, decision and script in each:
+Requirements: Node.js 22 and npm.
 
 ```bash
-python -m pipeline.collect --category sunscreen     # 18 keywords x 100 units = 1,800 quota units
-python -m pipeline.vision  --category sunscreen
-python -m pipeline.score   --category sunscreen
-python -m pipeline.build   --category sunscreen     # -> data/sunscreen/dataset.json
-cd web && npm run build:data -- --category sunscreen # -> public/linkverse/sunscreen.json
+git clone https://github.com/ChenYvhang/linkverse.git
+cd linkverse/web
+npm ci
+npm run dev
 ```
 
-`python -m pipeline.export_catalog` (no `--category` — it covers every registered category in one
-pass) writes `web/public/linkverse/catalog.json`: each category's product vectors and axis
-definitions, read straight from `products.yaml`/`dimensions.yaml`. It has no dependency on any of
-the stages above, so it can — and should — be rerun any time a category's products or dimensions
-change, even before that category has been collected once. The onboarding chat's "jump straight to
-a product" tags and its free-text productVector scoring both read this file (see "Onboarding chat"
-under "Local development" below); it's the only thing standing between a fresh clone and a working
-chat.
+Open http://localhost:5173/.
 
-Note that **P (potential) is category-independent** and R (resonance) is not: potential is pure
-channel dynamics — growth, momentum, seasonality — which mean the same thing whatever you are
-selling. Only resonance is scored per space.
+Under plain Vite development, the serverless onboarding endpoint is unavailable. Known-product
+tags still re-score creators immediately, and free-text onboarding falls back to manual category
+selection instead of hanging.
 
-To activate an `onboarding` category once its data exists, flip its `status` in `categories.yaml`
-and in `web/src/linkverse/categories.ts`. Until then the frontend shows placeholders rather than
-fabricated scores, per the honesty statement below.
-
----
-
-## Data flow
-
-```mermaid
-flowchart LR
-    subgraph Stage1["Stage1 collect.py"]
-        A[YouTube Data API v3]
-    end
-    subgraph Stage2["Stage2 features.py"]
-        B[Age-bias removal + seasonal coefficients + momentum features]
-    end
-    subgraph Stage3["Stage3 vision.py"]
-        C[GLM-4.6V-Flash, 8-dimensional vision analysis]
-    end
-    subgraph Stage4["Stage4 score.py"]
-        D[Dual-head GBDT potential P + cosine resonance R]
-    end
-    subgraph Stage5["Stage5 decide.py"]
-        E[DeepSeek decision cards + creative variants]
-    end
-    subgraph Stage5b["Stage5b scripts.py"]
-        F[Top-20 full bilingual scripts]
-    end
-    subgraph Stage5cd["Stage5c/5d translate_*.py"]
-        G[Creative variants + vision evidence + decision card, English translation]
-    end
-    subgraph Stage6["Stage6 build.py"]
-        H[data/&lt;category&gt;/dataset.json]
-    end
-    subgraph Trim["web/scripts/build-linkverse.mjs"]
-        I[web/public/linkverse.json]
-    end
-    subgraph Web["LinkVerse (React + Vite)"]
-        J[Result -> Evidence -> Action]
-    end
-
-    A --> B --> C --> D --> E --> F --> H
-    E --> G --> H
-    D --> H
-    H --> I --> J
-```
-
-Every stage writes an independently inspectable intermediate file (`raw/` → `artifacts/features.json`
-→ `cache/vision/` → `artifacts/scores.json` → `cache/decisions/` → `cache/scripts/` /
-`cache/*_translations/` → `data/<category>/dataset.json`). Any step can be reproduced from disk without
-rerunning everything upstream. `web/scripts/build-linkverse.mjs` is a separate, later addition: it
-trims `dataset.json` (62MB, 2083 creators, mostly Chinese) down to `web/public/linkverse.json`
-(~1.7MB, the 351 creators with a generated decision, English-only) — the only file the frontend
-actually fetches at runtime.
-
----
-
-## Directory structure
-
-```
-Demo/
-├── pipeline/                      # Python data pipeline
-│   ├── collect.py                 # Stage1 YouTube collection
-│   ├── features.py                # Stage2 feature engineering (age-bias removal, seasonal coefficients)
-│   ├── validate_features.py       # Age-bias gate validation
-│   ├── vision.py                  # Stage3 multimodal vision analysis (GLM-4.6V-Flash)
-│   ├── score.py                   # Stage4 dual-head GBDT potential P + cosine resonance R + tiered backtest
-│   ├── decide.py                  # Stage5 DeepSeek decision cards (recommended product/reasoning/creative variants/risk review)
-│   ├── scripts.py                 # Stage5b full bilingual scripts for the Top-20 (4 variants/creator)
-│   ├── translate_variants.py      # Stage5c English translation of creative_variants for non-Top-20 creators
-│   ├── translate_content.py       # Stage5d English translation of vision evidence + decision free text
-│   ├── build.py                   # Stage6 merges every stage's output -> data/<category>/dataset.json
-│   ├── export_catalog.py          # products.yaml + dimensions.yaml, every category -> web/public/linkverse/catalog.json
-│   ├── validate.py                # REFACTOR_PLAN.md gate: age bias / seasonal leakage / GroupKFold, etc.
-│   ├── adapters/
-│   │   ├── platform_base.py       # PlatformAdapter abstract base (YouTube is the only implementation)
-│   │   └── youtube_adapter.py
-│   ├── common/
-│   │   ├── config.py               # category-aware config loading, shared by every stage
-│   │   ├── http.py                # shared request handling: timeouts/retries/backoff
-│   │   ├── quota.py                # YouTube quota counter, hard-stops over budget
-│   │   ├── logging.py
-│   │   └── variants.py             # normalizes creative_variants field names (fixes LLM output typos)
-│   ├── config/
-│   │   ├── categories.yaml         # category registry — see "Product categories" above
-│   │   └── categories/<id>/        # dimensions.yaml + products.yaml + seeds.yaml, per category
-│   ├── raw/youtube/                # raw collected JSON (written per fetched_at, never overwritten)
-│   ├── cache/<kind>/<category>/    # per-(category, channel_id) intermediates
-│   └── artifacts/                  # features.json / scores.json / quota_log.json / validate_report.json
-├── data/<category>/dataset.json     # full Stage6 output; gitignored, and deliberately NOT under
-│                                    # web/public/ — nothing fetches it at runtime, so keeping it
-│                                    # out of that directory keeps 60MB+ out of the deploy bundle
-├── reports/                        # REFACTOR_PLAN.md backtest reports (backtest.md + charts)
-├── web/                            # React + TypeScript + Vite frontend
-│   ├── api/diagnose.ts             # Vercel serverless function: DeepSeek-backed onboarding chat
-│   ├── scripts/build-linkverse.mjs # data/<category>/dataset.json -> the app's trimmed JSON
-│   ├── public/
-│   │   ├── linkverse.json          # trimmed, English-only dataset the app actually fetches
-│   │   ├── linkverse/*.json        # per-category datasets (sunscreen/supplement: placeholders)
-│   │   └── linkverse/catalog.json  # every category's product vectors + axes (pipeline/export_catalog.py)
-│   └── src/
-│       ├── main.tsx                 # entry point — renders LinkVerse directly, no router
-│       ├── linkverse.css            # light "viewfinder" theme
-│       └── linkverse/                # the whole app: LinkVerse.tsx / Scope.tsx / Kit.tsx / Onboarding.tsx / useData.ts / catalog.ts
-├── .github/workflows/deploy-web.yml # GitHub Pages workflow (not currently enabled for this repo)
-├── PLAN.md                          # original implementation plan (incl. the four-layer architecture decisions)
-└── REFACTOR_PLAN.md                 # prediction-layer/backtest-methodology rework (5 recorded open decisions)
-```
-
----
-
-## Pipeline stages
-
-| Stage | Script | Purpose | Key output |
-|---|---|---|---|
-| 1 | `collect.py` | YouTube collection: seed search → channel snapshot → uploads list → video details | `raw/youtube/*.json` |
-| 2 | `features.py` + `validate_features.py` | Removes cumulative-views age bias via age bucketing; momentum features (`relative_velocity`/`momentum_acceleration`); seasonal coefficient estimation | `artifacts/features.json`, `artifacts/validate_report.json` |
-| 3 | `vision.py` | GLM-4.6V-Flash multimodal analysis of thumbnails, outputs an 8-dimensional semantic vector (`content_vector`) + evidence text | `cache/vision/{channel_id}.json` |
-| 4 | `score.py` | Potential score P: dual-head GBDT (`LGBMRanker` ranking head + `LGBMRegressor` probability head, Platt/sigmoid calibration + conformal interval); Resonance score R: cosine similarity between `content_vector` and each product's vector; tiered Top-K backtest | `artifacts/scores.json` |
-| 5 | `decide.py` | DeepSeek-generated decision card: recommended product, reasoning, competitor risk review, price range, 2-3 localized creative variants | `cache/decisions/{channel_id}.json` |
-| 5b | `scripts.py` | Full scripts for the Top-20 creators by combined score: TikTok vertical / YouTube horizontal × Chinese/English, each with hook/storyboard/voiceover/captions/CTA | `cache/scripts/{channel_id}_{product_id}_{platform}_{lang}.json` |
-| 5c | `translate_variants.py` | Translates `creative_variants` for creators outside the Top-20 (who only got a lightweight decision card) | `cache/variant_translations/{channel_id}.json` |
-| 5d | `translate_content.py` | Translates vision evidence (`sport_types`/`evidence`) and decision free text (`reasoning`/`localization_notes`/`risk_review.conclusion`/`price_range.basis`) — per-creator LLM output, not a fixed vocabulary, so it needs a real translation; built-in validation retries any output that still contains CJK characters | `cache/content_translations/{channel_id}.json` |
-| 6 | `build.py` | Merges every cache + feature + score above into the frontend's data source | `data/<category>/dataset.json` |
-| — | `validate.py` | REFACTOR_PLAN.md gate script: age-bias before/after, seasonal-leakage fix comparison, GroupKFold-vs-KFold pseudo-duplicate detection, label-tightening comparison, calibration curve/Brier/conformal coverage, tiered backtest table — any hard gate failing exits non-zero | `reports/*.md`, `reports/*.png` |
-
-Every outbound request (YouTube / GLM / DeepSeek) goes through `pipeline/common/http.py`: timeouts
-(5s connect / 30s read), exponential backoff (up to 3 retries), and inter-request rate limiting.
-Entries that still fail after retries are skipped and logged to `artifacts/*_failures.json` — never
-written as fabricated data.
-
----
-
-## Current dataset snapshot
-
-These numbers come from `data/action_camera/dataset.json`'s `meta` and can be refreshed anytime by
-rerunning `python -m pipeline.build`:
-
-| Metric | Value |
-|---|---|
-| Channels collected | 2,083 |
-| Total videos | 93,172 |
-| Vision analysis coverage | 351 / 2,083 (rate-limited on the free vision tier — not a defect, the UI honestly labels the rest "pending analysis") |
-| Decision card coverage | 351 / 2,083 |
-| Potential-score model | `dual_head_gbdt` (2,650 training rows, incl. rolling-window resampling) |
-| YouTube API quota used | 9,200 / 10,000 units (within the daily budget) |
-
-### Backtest results (`reports/backtest.md`)
-
-| K | Baseline hit rate | Model hit rate | Lift |
-|---|---|---|---|
-| 10 | 0.10 | 0.70 | 7.0× |
-| 20 | 0.10 | 0.55 | 5.5× |
-| 50 | 0.06 | 0.28 | 4.67× |
-| 100 | 0.08 | 0.18 | 2.25× |
-
-**Tiered results are reported as-is, including the unfavorable ones**: once the "large channels
-naturally win" advantage is removed, the 1K-10K subscriber tier's lift is 0.75 (**worse than the
-baseline**), the 10K-50K tier is roughly even (1.0×), 50K-200K is 1.33×, 200K-1M is 2.0×, and the
-1M+ tier (48 candidates, 3 positives) is too small a sample to draw a conclusion from. This is a
-real finding: the model's edge on small/mid-size channels isn't consistently strong.
-
-Calibration: Brier score = 0.0598; conformal target coverage 90% vs. actual 90.11%.
-
----
-
-## Frontend
-
-React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + Recharts, English-only UI, three screens:
-
-- **Result** — a headline stat up front ("we catch X% of tomorrow's breakout creators, Y× better
-  than ranking by follower count"), backed by the tiered backtest above; a scripted product-onboarding
-  chat (company/product/market/audience/tone) that ends by pointing at the fixed Insta360 demo data —
-  it's a UI mockup of the eventual "describe your product → get a custom match" flow, not wired up
-  to any real matching yet.
-- **Evidence** — a P×R scatter plot (real thumbnails, not color-coded dots; four labeled quadrants;
-  a rich hover card with thumbnail/subs/market) plus a ranked Top-12 list with per-creator
-  checkboxes that roll up into a selection summary bar (combined budget estimate, market
-  breakdown).
-- **Action** — an outreach kit drawer per creator: a competitor-risk banner when flagged, P/R/combined
-  scores, recent thumbnails, the match reasoning plus a feature-contribution chart, the recommended
-  product and price band, an "what the AI saw" vision summary with a momentum-over-time chart, and
-  the ready-to-send script with copy-to-clipboard and export-to-.txt.
-
-The original 4-page app (bilingual toggle, backtest/system-status pages, drag-select candidate pool
-with a budget cap, side-by-side radar comparison, keyboard shortcuts) has been deleted rather than
-kept as unreachable source — recover it from git history if a feature there is worth porting.
-
-The production bundle is split in two: the app itself (~219 kB) and a `charts` chunk (~379 kB,
-Recharts + d3), which changes far less often and stays cached across normal UI edits.
-
----
-
-## Working together
-
-Full steps for collaborating (branches, commits, pull requests) are in
-**[CONTRIBUTING.md](./CONTRIBUTING.md)** (bilingual, written for people new to GitHub).
-
----
-
-## Local development
-
-### Requirements
-
-- Python 3.13 (virtualenv lives at the repo root, `.venv`)
-- Node.js 22 (`web/`)
-
-### Pipeline
-
-Run every command from the **repo root** as a module (`python -m pipeline.xxx`), with the
-virtualenv also at the root — not from inside `pipeline/` — so `pipeline.common.*`'s relative
-imports resolve correctly.
-
-```bash
-python -m venv .venv && .venv/Scripts/activate   # Windows; use `source .venv/bin/activate` on Linux/Mac
-pip install -r pipeline/requirements.txt
-cp .env.example .env   # fill in the variables below
-
-# run in order (or skip straight to build using the cached data already in pipeline/cache/)
-python -m pipeline.collect --limit-channels 20      # small batch for validation
-python -m pipeline.features
-python -m pipeline.validate_features
-python -m pipeline.vision --top-n-by-potential 20   # rate-limited free tier, start small
-python -m pipeline.score
-python -m pipeline.decide --limit 3
-python -m pipeline.scripts --top-n 20
-python -m pipeline.translate_variants --limit 3
-python -m pipeline.translate_content --limit 3
-python -m pipeline.build                             # merges everything into data/action_camera/dataset.json
-python -m pipeline.export_catalog                    # -> web/public/linkverse/catalog.json (all categories)
-```
-
-### Frontend
+To run the real free-text onboarding chat locally, put `DEEPSEEK_API_KEY` in `web/.env.local` and
+run the project with the Vercel development server:
 
 ```bash
 cd web
-npm install
-npm run build:data   # regenerates web/public/linkverse.json from data/action_camera/dataset.json
-npm run dev           # http://localhost:5173/
-npm run build          # tsc -b && vite build
+vercel dev
 ```
 
-### Onboarding chat
+## Current data
 
-The landing chat has two paths into the results page, both ending at the same re-scored ranking
-(`web/src/linkverse/LinkVerse.tsx`'s `rescore()` — centered cosine similarity against whichever
-product vector it's handed):
+The shipped frontend datasets were inspected on 2026-08-12:
 
-- **Tag a known product** — the chips above the chat input, one per product in
-  `web/public/linkverse/catalog.json`. Clicking one calls `onDiagnosed()` immediately with that
-  product's real, hand-defined vector (same one `score.py` uses) — no network call, no DeepSeek,
-  instant.
-- **Describe it in free text** — `web/src/linkverse/Onboarding.tsx` sends the whole conversation
-  plus *every* category's axis definitions to `web/api/diagnose.ts`, which asks DeepSeek to
-  determine the category and then place the product on that category's axes specifically (not
-  whichever category the browser happens to have loaded — see the comment on
-  `buildVectorInstruction` in that file for the bug this avoids). The resulting `productVector`
-  drives the same `rescore()`.
+| Category | Collected channels | Creators with decision cards | Products | Top-20 model hit rate | Baseline | Lift |
+|---|---:|---:|---:|---:|---:|---:|
+| Action cameras | 2,083 | 351 | 4 | 55% | 10% | 5.5x |
+| Sunscreen | 1,444 | 319 | 3 | 40% | 15% | 2.7x |
+| Supplements | 1,536 | 227 | 3 | 50% | 10% | 5.0x |
 
-Both paths need `catalog.json` to exist — regenerate it with `python -m pipeline.export_catalog`
-after editing any category's `products.yaml` or `dimensions.yaml`.
+These are not claims of causal marketing impact. The backtest asks whether the ranking surfaces
+channels that later accelerate, not whether contacting them causes sales. Action cameras currently
+have two usable collection snapshots and therefore show **Live Potential**, which reports real
+subscriber movement between runs. Sunscreen and supplements each have one usable snapshot, so the
+UI says that live movement is not available yet.
 
----
+## How it works
 
-## Environment variables (`.env`, see `.env.example`)
+```mermaid
+flowchart LR
+    A[YouTube Data API] --> B[Age-adjusted features]
+    B --> C[Potential model P]
+    B --> D[GLM vision analysis]
+    D --> E[Category-specific resonance R]
+    C --> F[Combined ranking]
+    E --> F
+    F --> G[DeepSeek decision cards and scripts]
+    G --> H[Trimmed frontend JSON]
+    H --> I[React app]
+    I --> J[Local or Supabase outcome tracking]
+```
 
-| Variable | Used for | Status |
+### Scores
+
+- **Potential P** estimates whether a channel may be about to accelerate. It uses a dual-head
+  LightGBM design: a ranking head for ordering candidates and a regression head with Platt
+  calibration for probability-like output. Subscriber count and total views are excluded from the
+  historical feature window because they would leak future growth.
+- **Resonance R** measures how well a creator's vision vector fits a product vector. Each category
+  has its own eight-dimensional semantic space; sunscreen is not scored on action-camera concepts
+  such as stabilization demand.
+- **Combined C** is the geometric mean of P and R.
+
+For a visitor's free-text product, DeepSeek first chooses a category and proposes a product vector
+on that category's axes. The browser validates the category and vector shape, then re-ranks creators
+with centered cosine similarity. A malformed or missing vector falls back to a real precomputed
+ranking rather than producing authoritative-looking nonsense.
+
+### Pipeline stages
+
+| Stage | Module | Output |
 |---|---|---|
-| `YOUTUBE_API_KEY` | Stage1 collection (YouTube Data API v3) | required |
-| `ZHIPU_API_KEY` | Stage3 vision analysis (GLM-4.6V-Flash, Zhipu) | required in cloud mode (`vision.py` also supports a local Ollama backend, where this isn't needed) |
-| `DASHSCOPE_API_KEY` | reserved (Alibaba Cloud DashScope) | unused currently — a Qwen vision model was considered during planning, GLM was chosen instead |
-| `DEEPSEEK_API_KEY` | all DeepSeek calls in Stage5/5b/5c/5d (decision cards, scripts, translation) **and** `web/api/diagnose.ts` (the onboarding chat's product classification) | required |
+| 1. Collect | `pipeline.collect` | Raw YouTube channel and video snapshots |
+| 2. Features | `pipeline.features` | Age-adjusted velocity, cadence, engagement, and momentum features |
+| 3. Vision | `pipeline.vision` | Category-specific content vectors and visual evidence |
+| 4. Score | `pipeline.score` | Potential, resonance, calibration, conformal intervals, and backtests |
+| 5. Decide | `pipeline.decide` | Product recommendation, reasoning, pricing range, and risk review |
+| 5b-5d. Generate | `pipeline.scripts`, `pipeline.translate_*` | Bilingual scripts and translations |
+| 6. Build | `pipeline.build` | Full `data/<category>/dataset.json` |
+| Frontend export | `web/scripts/build-linkverse.mjs` | Trimmed `web/public/linkverse*.json` |
 
-The static frontend itself needs no keys — `dataset.json`/`linkverse.json` are build-time files
-with no secrets in them. The one exception is `web/api/diagnose.ts`, a Vercel serverless function
-that calls DeepSeek server-side to classify what a visitor describes in the onboarding chat; it
-reads `DEEPSEEK_API_KEY` from `process.env` and never exposes it to the browser. That function used
-to call Gemini on a separate `GEMINI_API_KEY`; it was moved onto DeepSeek (same model the pipeline
-pins, `deepseek-v4-flash`) so the project runs on one LLM vendor and one key. Locally it reads the
-key from `web/.env.local` (gitignored) — the same value as the root `.env`, just where `vercel dev`
-looks for it.
+Every stage writes an inspectable artifact or cache. Failed external requests are logged and
+skipped; the pipeline does not fill gaps with synthetic values.
 
----
+## How we used AI
 
-## Deployment
+"We built this with AI" is too vague to be useful. LinkVerse used AI in two distinct ways.
 
-- **Vercel** (live): auto-deploys on every push to `main` via the GitHub integration; base path is
-  `/`, the default in `web/vite.config.ts`. Set `DEEPSEEK_API_KEY` under the Vercel project's
-  Settings → Environment Variables so `web/api/diagnose.ts` can reach DeepSeek — the old
-  `GEMINI_API_KEY` there is now unused and can be removed. Locally, put the same key in
-  `web/.env.local` (or run `vercel env pull web/.env.local`) and use `vercel dev`; plain `vite dev`
-  never runs this function at all.
-- **GitHub Pages**: `.github/workflows/deploy-web.yml` would trigger on a push to `main` touching
-  `web/**` — not currently enabled for this repo. It builds with `PAGES_BASE=/<repo name>/` (read
-  from `github.event.repository.name`), which `vite.config.ts` uses as the base path; every other
-  build, local dev included, defaults to `/`.
+### AI inside the product
 
----
+- **GLM-4.6V-Flash** analyzes thumbnails and returns a category-specific content vector plus visual
+  evidence.
+- **DeepSeek V4 Flash** generates decision cards, outreach scripts, and English translations. It
+  also powers the Vercel onboarding conversation and proposes a product vector for free-text input.
+- LightGBM and cosine similarity, not an LLM, produce the creator ranking.
 
-## Honesty statement (a principle that runs through the whole project)
+### AI during development
 
-1. **No fabricated coverage**: any channel field `vision`/`decision`/`scripts` hasn't covered is
-   `null`, and the UI renders "pending analysis" / "not generated yet" — never backfilled with
-   templates or stale data.
-2. **No hiding unfavorable metrics**: the GBDT's AUC was at one point only 0.516 (near-random) —
-   recorded as-is in `PLAN.md`, and that metric was ultimately dropped from the product entirely in
-   favor of Top-K hit rate / lift, which maps more directly to the actual decision being made;
-   `REFACTOR_PLAN.md`'s 1K-10K subscriber-tier lift of 0.75 (worse than baseline) is likewise shown
-   as-is, not tuned away.
-3. **No pretending unbuilt capability exists**: TikTok/Xiaohongshu/Bilibili are marked "not yet
-   connected" on the (original) system-status page rather than shipped as misleading empty
-   implementation classes; the feedback layer's ROI/conversion attribution is explicitly labeled "no
-   real conversion data at demo scale, not yet connected" rather than faked with a causal dashboard.
-4. **Translation is real, not templated**: Chinese→English content (creative variants, vision
-   evidence, decision cards) is translated and cached by a real LLM call; anything not yet
-   translated shows the original text with an "English translation not yet generated" note instead
-   of a live machine translation or one boilerplate line reused everywhere.
-5. **A hard line on quota/cost**: `pipeline/common/quota.py` is the single counter for YouTube
-   quota and raises immediately if the budget is exceeded; every paid external API call
-   (DeepSeek/GLM) supports `--limit`/`--top-n` for a small validation batch first, so nothing runs
-   at full volume silently.
+Claude Code was the primary coding assistant. It helped draft Python and React code, perform
+repository-wide refactors, trace call chains, investigate failed runs, and prepare documentation.
+Codex was later used to audit the current implementation against this README and rewrite the setup
+instructions. The team reviewed source, outputs, plots, and builds before keeping changes.
 
-More background and decision history is in `PLAN.md` (the original implementation plan) and
-`REFACTOR_PLAN.md` (the prediction-layer/backtest-methodology rework, including how 5 open
-decisions were resolved and what came of them).
+### What AI got wrong
+
+Several failures changed the project rather than being hidden:
+
+- An early scoring version used current subscriber and total-view counts inside a historical
+  prediction setup. That leaked information from after the prediction point and inflated the
+  result. We removed the features and accepted the lower score.
+- Isotonic calibration passed numerical checks but collapsed most creators onto a few probability
+  levels, visible as vertical stripes in the scatter plot. We traced the implementation and small
+  calibration sample, then replaced it with Platt scaling.
+- The first free-text multi-category matcher sent only the currently loaded category's axes to the
+  model. A sunscreen product could therefore receive a same-length but meaningless action-camera
+  vector. The current API sends every category's axes and validates the vector against the category
+  selected in the same response.
+- A frontend version displayed the first twelve creators in dataset order as "Top picks" rather
+  than sorting by combined score. Source review against real data caught the mistake.
+- LLM output sometimes contained malformed field names or untranslated Chinese. The pipeline now
+  normalizes known fields, validates output, retries where appropriate, and leaves missing content
+  visibly missing.
+
+### What the team wrote and decided
+
+The team owned the product definition and the decisions that make the system defensible: the three
+categories, seed vocabularies, eight-dimensional semantic spaces, hand-defined product vectors,
+evaluation protocol, human intervention points, and the rule that missing coverage and unfavorable
+metrics remain visible. We chose the interpretable GBDT plus cosine approach because the project
+does not have genuine supervised creator-product outcome labels for a neural matcher. We also wrote
+the collaboration rules and reviewed AI-generated code before accepting it. AI accelerated
+implementation; it did not choose what evidence the team was willing to defend.
+
+## Rebuilding the data pipeline
+
+This section is optional. A fresh clone can run the frontend without it.
+
+The full datasets, raw snapshots, model artifacts, and caches are intentionally gitignored because
+they are large and may contain paid-API outputs. Rebuilding from scratch requires Python 3.13,
+external API keys, YouTube quota, and time for rate-limited model calls.
+
+Create the environment from the repository root:
+
+```bash
+python -m venv .venv
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+# macOS/Linux
+source .venv/bin/activate
+
+pip install -r pipeline/requirements.txt
+cp .env.example .env
+```
+
+Fill the required keys in `.env`, then run one category in stages. Start with small limits before
+spending quota or paid model calls:
+
+```bash
+python -m pipeline.collect --category sunscreen --limit-channels 20
+python -m pipeline.features --category sunscreen
+python -m pipeline.validate_features --category sunscreen
+
+# First score pass creates category-independent P, which can prioritize vision work.
+python -m pipeline.score --category sunscreen
+python -m pipeline.vision --category sunscreen --top-n-by-potential 20 --backend zhipu
+
+# Re-run after vision so R is available, then generate a small decision batch.
+python -m pipeline.score --category sunscreen
+python -m pipeline.decide --category sunscreen --limit 3
+python -m pipeline.scripts --category sunscreen --top-n 20 --limit 3
+python -m pipeline.translate_variants --category sunscreen --limit 3
+python -m pipeline.translate_content --category sunscreen --limit 3
+python -m pipeline.build --category sunscreen
+python -m pipeline.export_catalog
+
+cd web
+npm run build:data -- --category sunscreen
+```
+
+`pipeline.vision` defaults to a local Ollama backend. Use `--backend zhipu` for the configured cloud
+model. Do not run unbounded collection or generation until the limited pass has succeeded.
+
+### Environment variables
+
+Root `.env`:
+
+| Variable | Purpose |
+|---|---|
+| `YOUTUBE_API_KEY` | YouTube Data API collection |
+| `ZHIPU_API_KEY` | GLM vision analysis when using `--backend zhipu` |
+| `DEEPSEEK_API_KEY` | Decision cards, scripts, translations, and server-side onboarding |
+| `DASHSCOPE_API_KEY` | Reserved; currently unused |
+
+Optional `web/.env.local`:
+
+| Variable | Purpose |
+|---|---|
+| `DEEPSEEK_API_KEY` | Used by `vercel dev` for the onboarding serverless function |
+| `VITE_SUPABASE_URL` | Public Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Public anon key; access is restricted by database RLS |
+
+Never put a Supabase `service_role` key in a `VITE_` variable. Vite exposes every `VITE_` value in
+the browser bundle.
+
+## Optional Supabase setup
+
+Without Supabase, creator tracking remains local to one browser. To enable accounts and multi-device
+sync:
+
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in the Supabase SQL editor.
+3. Enable email authentication.
+4. Put the project URL and anon key in `web/.env.local` or the deployment environment.
+
+The schema stores one row per `(user, category, creator)` and enforces ownership with Postgres Row
+Level Security. See `supabase/README.md` for the full setup and security notes.
+
+## Verification
+
+Frontend checks:
+
+```bash
+cd web
+npm run lint
+npm run build
+```
+
+Pipeline checks:
+
+```bash
+python -m pipeline.validate_features --category action_camera
+python -m pipeline.validate
+```
+
+The repository currently has **no automated unit or end-to-end test suite**. The checked-in quality
+gates are the pipeline validation scripts, TypeScript production build, linter, backtest reports,
+and manual browser verification. Adding regression tests for ranking, tracking state, and the
+onboarding API is still open work.
+
+## Adding a product category
+
+A category is a semantic coordinate system, not just a list of products. Add:
+
+```text
+pipeline/config/categories/<category>/
+|-- dimensions.yaml
+|-- products.yaml
+`-- seeds.yaml
+```
+
+Then register the category in both the pipeline registry and the frontend category list, collect
+and analyze category-specific creators, rebuild the full dataset, export the catalog, and generate
+the trimmed frontend JSON. Product vectors must use the exact dimension order declared in
+`dimensions.yaml`.
+
+## Repository layout
+
+```text
+linkverse/
+|-- pipeline/                 Python collection, analysis, scoring, generation, and validation
+|-- pipeline/config/          Category registry and category-specific semantic spaces
+|-- pipeline/experiments/     Read-only experiments before production integration
+|-- data/                     Full generated datasets; gitignored
+|-- reports/                  Backtest reports and plots
+|-- supabase/                 Account-backed tracking schema and setup
+|-- web/api/                  Vercel onboarding function
+|-- web/public/linkverse/     Shipped catalog and per-category datasets
+|-- web/src/linkverse/        React application
+|-- PLAN.md                   Implementation and decision history
+|-- REFACTOR_PLAN.md          Prediction and evaluation redesign history
+`-- CONTRIBUTING.md           Chinese/Korean collaboration guide
+```
+
+## Known limits
+
+- Only YouTube is connected. TikTok, Douyin, Xiaohongshu, and Bilibili are not implemented.
+- Vision and decision coverage is partial; the frontend ships only creators with decision cards.
+- Product vectors are hand-defined hypotheses, not learned from campaign outcomes.
+- Free-text product vectors are model-generated estimates and are validated structurally, not
+  against ground-truth product-fit labels.
+- The feedback pipeline records outreach outcomes but does not retrain the potential model yet.
+- There is no real ad-spend, conversion, or ROI attribution dataset, so LinkVerse does not claim
+  causal marketing impact.
+- Live Potential requires at least two sufficiently separated collection snapshots.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the branch, commit, pull-request, and secret-handling
+workflow. The guide is written in Chinese and Korean for collaborators who are new to GitHub.
