@@ -248,8 +248,9 @@ export default function Onboarding({
                 onClick={() => playDemo(preset, product)}
                 disabled={diagnosing || demoPlaying}
                 title={`Play the ${preset.label} demo`}
-                className="text-[11px] font-semibold text-accent border border-accent/30 rounded-full px-2.5 py-0.5
-                  hover:bg-accent-fill hover:text-white transition-colors disabled:opacity-50"
+                className="opal-btn text-xs font-semibold text-[#232734] rounded-full px-3 py-1.5
+                  border border-white/50 shadow-sm hover:shadow-md hover:-translate-y-0.5
+                  transition-[box-shadow,transform] disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 {preset.label}
               </button>
