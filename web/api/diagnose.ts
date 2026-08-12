@@ -222,7 +222,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const messages: DeepSeekMessage[] = [
       { role: "system", content: buildSystemPrompt(dimensionsByCategory) },
-      ...conversation.map((t) => ({
+      ...conversation.map((t): DeepSeekMessage => ({
         role: t.role === "assistant" ? "assistant" : "user",
         content: t.text,
       })),
