@@ -36,7 +36,9 @@ type ApiResponse =
       productVector?: number[] | null;
     };
 
-const REQUEST_TIMEOUT_MS = 12_000;
+// Allows one server-side repair attempt when the model returns malformed JSON.
+// The UI still falls back cleanly if both attempts exceed this budget.
+const REQUEST_TIMEOUT_MS = 30_000;
 
 function asKnownCategory(id: string | null): CategoryId | null {
   return id !== null && CATEGORIES.some((c) => c.id === id) ? (id as CategoryId) : null;

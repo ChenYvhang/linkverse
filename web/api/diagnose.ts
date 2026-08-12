@@ -15,8 +15,10 @@ type VercelResponse = {
   status(code: number): VercelResponse;
   json(body: unknown): void;
 };
+declare const process: { env: Record<string, string | undefined> };
 
 type ConversationTurn = { role: "assistant" | "user"; text: string };
+type DeepSeekMessage = { role: "system" | "assistant" | "user"; content: string };
 
 // A category's semantic axes, sent by the client from catalog.json (see
 // pipeline/export_catalog.py). Passed in rather than duplicated here so there
@@ -138,6 +140,42 @@ function stripCodeFences(text: string): string {
   return fenced ? fenced[1].trim() : trimmed;
 }
 
+// JSON mode is not perfectly reliable under load: the model can still wrap a
+// valid object in a sentence or a code block. Extract the first balanced JSON
+// object without being confused by braces inside quoted strings.
+function extractJsonObject(text: string): string | null {
+  const source = stripCodeFences(text);
+  const start = source.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < source.length; i++) {
+    const char = source[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{") depth++;
+    else if (char === "}" && --depth === 0) return source.slice(start, i + 1);
+  }
+  return null;
+}
+
+function parseModelResponse(text: string): unknown | null {
+  const candidate = extractJsonObject(text);
+  if (!candidate) return null;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+}
+
 function isValidShape(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -182,7 +220,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const messages = [
+    const messages: DeepSeekMessage[] = [
       { role: "system", content: buildSystemPrompt(dimensionsByCategory) },
       ...conversation.map((t) => ({
         role: t.role === "assistant" ? "assistant" : "user",
@@ -190,43 +228,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })),
     ];
 
-    const upstream = await fetch(DEEPSEEK_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: DEEPSEEK_MODEL,
-        messages,
-        response_format: { type: "json_object" },
-        temperature: 0.3,
-      }),
-    });
+    let parsed: unknown | null = null;
+    let attemptMessages = messages;
+    let lastFailure = "DeepSeek did not return a valid response";
 
-    if (!upstream.ok) {
-      const text = await upstream.text();
-      res.status(502).json({ error: `DeepSeek API error (${upstream.status}): ${text.slice(0, 300)}` });
-      return;
+    for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
+      const upstream = await fetch(DEEPSEEK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: DEEPSEEK_MODEL,
+          messages: attemptMessages,
+          response_format: { type: "json_object" },
+          temperature: attempt === 0 ? 0.2 : 0,
+        }),
+      });
+
+      if (!upstream.ok) {
+        lastFailure = `DeepSeek API error (${upstream.status})`;
+        continue;
+      }
+
+      const payload = await upstream.json();
+      const text = payload?.choices?.[0]?.message?.content;
+      if (typeof text !== "string") {
+        lastFailure = "DeepSeek response had no content";
+        continue;
+      }
+
+      const candidate = parseModelResponse(text);
+      if (isValidShape(candidate)) {
+        parsed = candidate;
+        break;
+      }
+
+      lastFailure = "DeepSeek response was not valid JSON";
+      attemptMessages = [
+        ...messages,
+        { role: "assistant", content: text },
+        {
+          role: "user",
+          content: "Your previous response was invalid. Return exactly one valid JSON object matching the requested shape, with no prose or code fence.",
+        },
+      ];
     }
 
-    const payload = await upstream.json();
-    const text = payload?.choices?.[0]?.message?.content;
-    if (typeof text !== "string") {
-      res.status(502).json({ error: "DeepSeek response had no content" });
-      return;
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(stripCodeFences(text));
-    } catch {
-      res.status(502).json({ error: "DeepSeek response was not valid JSON" });
-      return;
-    }
-
-    if (!isValidShape(parsed)) {
-      res.status(502).json({ error: "DeepSeek response had an unexpected shape" });
+    if (!parsed) {
+      res.status(502).json({ error: lastFailure });
       return;
     }
 
