@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CATEGORIES, type CategoryId } from "./categories";
+import type { CategoryId } from "./categories";
 import { diagnoseCompany, type ConversationTurn, type DiagnosisResult, type ProductMatch } from "./diagnose";
 import { useCatalog, type CatalogProduct } from "./catalog";
 
@@ -63,6 +63,7 @@ const DEMO_PRESETS: DemoPreset[] = [
 
 type ChatMessage = { role: "assistant" | "user"; text: string };
 type Diagnosis = Extract<DiagnosisResult, { done: true; ok: true }>;
+type CompletionKind = "demo" | "custom";
 
 export default function Onboarding({
   onDiagnosed,
@@ -85,6 +86,7 @@ export default function Onboarding({
   const [input, setInput] = useState("");
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+  const [completionKind, setCompletionKind] = useState<CompletionKind | null>(null);
   const [demoPlaying, setDemoPlaying] = useState(false);
   // Set when diagnoseCompany() couldn't complete (network error, timeout,
   // missing API key, etc). Never show a blank/stuck chat — let the presenter
@@ -124,7 +126,9 @@ export default function Onboarding({
       // no-match rather than asking forever.
       const summary = "Thanks — that's enough to go on.";
       setDiagnosis({ done: true, ok: true, categoryId: null, confidence: 0, summary, productVector: null, product: "" });
+      setCompletionKind("custom");
       setMessages((m) => [...m, { role: "assistant", text: summary }]);
+      onDiagnosed(null);
       return;
     }
 
@@ -134,7 +138,12 @@ export default function Onboarding({
     }
 
     setDiagnosis(result);
+    setCompletionKind("custom");
     setMessages((m) => [...m, { role: "assistant", text: result.summary }]);
+    // A free-text company always ends at the Premium preview, even when the
+    // LLM classifies it into one of the three demo categories. Only clicking
+    // an explicit demo preset is allowed to reveal the checked-in rankings.
+    onDiagnosed(null);
   }
 
   async function submitAnswer(text: string) {
@@ -180,6 +189,7 @@ export default function Onboarding({
           productVector: product.vector,
           product: product.name,
         });
+        setCompletionKind("demo");
         setDemoPlaying(false);
         setDiagnosing(false);
         onDiagnosed(preset.categoryId, match);
@@ -200,9 +210,6 @@ export default function Onboarding({
 
   const done = diagnosis !== null;
   const placeholder = turnCount === 0 ? OPENING_PLACEHOLDER : "Type your answer…";
-  const categoryLabel = diagnosis?.categoryId
-    ? CATEGORIES.find((c) => c.id === diagnosis.categoryId)?.label ?? null
-    : null;
 
   // Exactly one stable preset per demo category. The rest of the product
   // catalog remains available to the ranking pipeline but is not presented
@@ -302,15 +309,13 @@ export default function Onboarding({
           ) : (
             <div className="rounded-lg border border-accent/25 bg-accent/[0.04] px-4 py-3.5">
               <div className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-3">
-                Diagnosis
+                {completionKind === "demo" ? "Demo ready" : "Custom match complete"}
               </div>
-              <button
-                onClick={() => onDiagnosed(null)}
-                className="text-sm font-medium text-accent border border-accent/30 rounded-lg px-4 py-2
-                  hover:bg-accent-fill hover:text-white transition-colors"
-              >
-                {categoryLabel ? `Continue with ${categoryLabel} →` : "View Premium access →"}
-              </button>
+              <p className="text-sm text-ink/80 leading-relaxed">
+                {completionKind === "demo"
+                  ? "Real demo results are shown below."
+                  : "Your custom recommendation is ready in the Premium preview below."}
+              </p>
             </div>
           )}
         </div>
